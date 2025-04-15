@@ -378,32 +378,6 @@ const AdminHomePage = () => {
               </div>
             </div>
 
-            {/* Tezkor kirish imkoniyatlari */}
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Tezkor Kirish</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredAbilities.map((ability, index) => {
-                  const IconComponent = iconComponents[ability.icon] || FiSettings;
-                  return (
-                    <div
-                      key={`quick-access-${index}`}
-                      className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition cursor-pointer border border-gray-100"
-                      onClick={() => handleNavigation(ability.path)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                          <IconComponent />
-                        </div>
-                        <div>
-                          <h2 className="font-medium text-gray-800">{ability.title}</h2>
-                          <p className="text-xs text-gray-500 truncate">{ability.description}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </>
         )}
       </main>
