@@ -1,21 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setActiveTab } from '../redax/adminAbilitiesSlice';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import {
   FiShoppingCart, FiList, FiUsers, FiBarChart2, FiSettings,
   FiTag, FiUserPlus, FiLock, FiTruck, FiMapPin, FiPieChart,
   FiClipboard, FiRefreshCw, FiXCircle, FiDownload, FiDollarSign,
   FiImage, FiBookOpen, FiMail, FiUploadCloud, FiActivity,
   FiHeadphones, FiHelpCircle, FiLogOut, FiUser, FiDatabase,
-  FiPackage, FiHome, FiLayers, FiShield, FiCreditCard
-} from "react-icons/fi";
-import Header from '../components/Header';
+  FiPackage, FiHome, FiLayers, FiShield, FiCreditCard, FiMenu, FiMoon, FiSun
+} from 'react-icons/fi';
 
 const AdminLayout = ({ children }) => {
   const { abilities, activeTab } = useSelector((state) => state.adminAbilities);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const iconComponents = {
     FiShoppingCart, FiList, FiUsers, FiBarChart2, FiSettings,
@@ -26,50 +27,69 @@ const AdminLayout = ({ children }) => {
     FiLayers, FiShield, FiCreditCard
   };
 
-  // Group abilities by category for better organization
+  // Group abilities by category
   const groupedAbilities = abilities.reduce((acc, ability) => {
     const category = ability.category || 'Other';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
+    if (!acc[category]) acc[category] = [];
     acc[category].push(ability);
     return acc;
   }, {});
 
-  // Define category colors and icons
+  // Category styles
   const categoryStyles = {
-    Sales: { color: 'bg-blue-100 text-blue-800', icon: <FiDollarSign /> },
-    Products: { color: 'bg-green-100 text-green-800', icon: <FiPackage /> },
-    Users: { color: 'bg-purple-100 text-purple-800', icon: <FiUsers /> },
-    Orders: { color: 'bg-yellow-100 text-yellow-800', icon: <FiShoppingCart /> },
-    Settings: { color: 'bg-gray-100 text-gray-800', icon: <FiSettings /> },
-    Other: { color: 'bg-indigo-100 text-indigo-800', icon: <FiLayers /> }
+    Sales: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: <FiDollarSign /> },
+    Products: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: <FiPackage /> },
+    Users: { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: <FiUsers /> },
+    Orders: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: <FiShoppingCart /> },
+    Settings: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: <FiSettings /> },
+    Other: { color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', icon: <FiLayers /> }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} flex transition-colors duration-300`}>
       {/* Sidebar */}
-      <div className="w-64 bg-indigo-800 text-white p-4 sidebar h-screen overflow-y-auto">
-        <div className="flex items-center space-x-2 p-4 mb-8">
-          <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
-            <FiUser size={18} />
+      <aside
+        className={`fixed inset-y-0 left-0 w-64 ${isDarkMode ? 'bg-gray-800' : 'bg-indigo-800'} text-white p-4 h-screen overflow-y-auto transform transition-transform duration-300 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:relative md:translate-x-0 shadow-lg z-50`}
+        aria-label="Main navigation"
+      >
+        {/* Sidebar Header */}
+        <div className="flex items-center space-x-3 p-4 mb-6">
+          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md">
+            <FiUser size={20} />
           </div>
-          <span className="font-semibold">Admin Panel</span>
+          <span className="text-lg font-bold tracking-tight">Admin Panel</span>
         </div>
 
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="w-full flex items-center space-x-3 px-4 py-2 mb-4 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
+          <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+
+        {/* Navigation */}
         <nav className="space-y-6">
           {/* Dashboard */}
           <div>
-            <button 
+            <button
               onClick={() => {
-                dispatch(setActiveTab("dashboard"));
-                navigate("/"); 
+                dispatch(setActiveTab('dashboard'));
+                navigate('/');
+                setIsSidebarOpen(false); // Close sidebar on mobile
               }}
-              className={`w-full text-left px-4 py-2 rounded-lg flex items-center space-x-3 ${
-                activeTab === "dashboard" ? 'bg-indigo-700' : 'hover:bg-indigo-700'
+              className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                activeTab === 'dashboard'
+                  ? `${isDarkMode ? 'bg-indigo-900 text-white' : 'bg-white text-indigo-700'} border-l-4 border-indigo-600 shadow-lg`
+                  : `hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} hover:text-white ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'}`
               }`}
+              aria-current={activeTab === 'dashboard' ? 'page' : undefined}
             >
-              <FiHome className="flex-shrink-0" />
+              <FiHome className="flex-shrink-0 group-hover:scale-110 transition-transform duration-150" size={18} />
               <span>Dashboard</span>
             </button>
           </div>
@@ -77,27 +97,33 @@ const AdminLayout = ({ children }) => {
           {/* Grouped Sections */}
           {Object.entries(groupedAbilities).map(([category, items]) => (
             <div key={category} className="space-y-2">
-              <div className={`px-3 py-2 rounded-md ${categoryStyles[category]?.color || categoryStyles.Other.color} flex items-center space-x-2 text-xs font-semibold uppercase`}>
+              {/* Category Header */}
+              <div className={`flex items-center text-xs font-semibold ${isDarkMode ? 'text-gray-400' : 'text-indigo-200'} uppercase tracking-wider px-3 py-2 rounded-md ${categoryStyles[category]?.color || categoryStyles.Other.color}`}>
                 {categoryStyles[category]?.icon || categoryStyles.Other.icon}
-                <span>{category}</span>
+                <span className="ml-2">{category}</span>
               </div>
-              
+
+              {/* Abilities */}
               <ul className="space-y-1 pl-2">
                 {items.map((ability, index) => {
                   const IconComponent = iconComponents[ability.icon];
                   return (
                     <li key={`ability-${index}`}>
-                      <button 
+                      <button
                         onClick={() => {
                           dispatch(setActiveTab(ability.path));
                           navigate(ability.path);
+                          setIsSidebarOpen(false); // Close sidebar on mobile
                         }}
-                        className={`w-full text-left px-4 py-2 rounded-lg flex items-center space-x-3 ${
-                          activeTab === ability.path ? 'bg-indigo-700' : 'hover:bg-indigo-700'
+                        className={`group w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          activeTab === ability.path
+                            ? `${isDarkMode ? 'bg-indigo-900 text-white' : 'bg-white text-indigo-700'} border-l-4 border-indigo-600 shadow-lg`
+                            : `hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} hover:text-white ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'}`
                         }`}
+                        aria-current={activeTab === ability.path ? 'page' : undefined}
                       >
-                        {IconComponent && <IconComponent className="flex-shrink-0" size={18} />}
-                        <span className="text-sm">{ability.title}</span>
+                        {IconComponent && <IconComponent className="flex-shrink-0 group-hover:scale-110 transition-transform duration-150" size={18} />}
+                        <span>{ability.title}</span>
                       </button>
                     </li>
                   );
@@ -109,26 +135,42 @@ const AdminLayout = ({ children }) => {
 
         {/* System Section */}
         <div className="mt-8 pt-4 border-t border-indigo-700">
-          <div className="px-3 py-2 rounded-md bg-gray-100 text-gray-800 flex items-center space-x-2 text-xs font-semibold uppercase mb-2">
+          <div className={`px-3 py-2 rounded-md ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'} flex items-center space-x-2 text-xs font-semibold uppercase mb-2`}>
             <FiSettings size={14} />
             <span>System</span>
           </div>
-          <button className="w-full text-left px-4 py-2 rounded-lg flex items-center space-x-3 hover:bg-indigo-700 text-sm">
+          <button
+            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} text-sm ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'} transition-colors`}
+            aria-label="Help and Support"
+          >
             <FiHelpCircle size={18} />
             <span>Help & Support</span>
           </button>
-          <button className="w-full text-left px-4 py-2 rounded-lg flex items-center space-x-3 hover:bg-indigo-700 text-sm">
+          <button
+            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} text-sm ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'} transition-colors`}
+            aria-label="Log out"
+          >
             <FiLogOut size={18} />
             <span>Chiqish</span>
           </button>
         </div>
-      </div>
+      </aside>
+
+      {/* Mobile Toggle Button */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-50 text-indigo-800 dark:text-white"
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        aria-label={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+      >
+        <FiMenu size={24} />
+      </button>
 
       {/* Main Content */}
-      <div className="flex-1 flex sidebar h-screen overflow-y-auto flex-col">
-        <Header />
-        <main className="flex-1 p-6 bg-gray-50 mt-16 md:mt-0 overflow-y-auto">
-          {children}
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <main className="flex-1 p-6 mt-16 md:mt-0 overflow-y-auto">
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
         </main>
       </div>
     </div>
