@@ -46,31 +46,23 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} flex transition-colors duration-300`}>
+    <div className={`min-h-screen dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900 flex transition-colors duration-300`}>
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 w-64 ${isDarkMode ? 'bg-gray-800' : 'bg-indigo-800'} text-white p-4 h-screen overflow-y-auto transform transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 w-64 dark:bg-gray-800 darc:text-white  bg-gray-50 text-gray-900 p-4 h-screen overflow-y-auto transform transition-transform duration-300 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:relative md:translate-x-0 shadow-lg z-50`}
         aria-label="Main navigation"
       >
         {/* Sidebar Header */}
         <div className="flex items-center space-x-3 p-4 mb-6">
-          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md">
+          <div className="w-10 h-10 bg-gray-200   rounded-full flex items-center justify-center shadow-md">
             <FiUser size={20} />
           </div>
-          <span className="text-lg font-bold tracking-tight">Admin Panel</span>
+          <span className="text-lg dark:text-white text-black  font-bold tracking-tight">Admin Panel</span>
         </div>
 
-        {/* Dark Mode Toggle */}
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className="w-full flex items-center space-x-3 px-4 py-2 mb-4 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
-          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDarkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
-          <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-        </button>
+       
 
         {/* Navigation */}
         <nav className="space-y-6">
@@ -84,8 +76,8 @@ const AdminLayout = ({ children }) => {
               }}
               className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                 activeTab === 'dashboard'
-                  ? `${isDarkMode ? 'bg-indigo-900 text-white' : 'bg-white text-indigo-700'} border-l-4 border-indigo-600 shadow-lg`
-                  : `hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} hover:text-white ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'}`
+                  ? ` dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900  border-l-4 border-indigo-600 shadow-lg`
+                  : `hover: dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900 `
               }`}
               aria-current={activeTab === 'dashboard' ? 'page' : undefined}
             >
@@ -98,7 +90,7 @@ const AdminLayout = ({ children }) => {
           {Object.entries(groupedAbilities).map(([category, items]) => (
             <div key={category} className="space-y-2">
               {/* Category Header */}
-              <div className={`flex items-center text-xs font-semibold ${isDarkMode ? 'text-gray-400' : 'text-indigo-200'} uppercase tracking-wider px-3 py-2 rounded-md ${categoryStyles[category]?.color || categoryStyles.Other.color}`}>
+              <div className={`flex items-center text-xs font-semibold  dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900  uppercase tracking-wider px-3 py-2 rounded-md ${categoryStyles[category]?.color || categoryStyles.Other.color}`}>
                 {categoryStyles[category]?.icon || categoryStyles.Other.icon}
                 <span className="ml-2">{category}</span>
               </div>
@@ -117,8 +109,8 @@ const AdminLayout = ({ children }) => {
                         }}
                         className={`group w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                           activeTab === ability.path
-                            ? `${isDarkMode ? 'bg-indigo-900 text-white' : 'bg-white text-indigo-700'} border-l-4 border-indigo-600 shadow-lg`
-                            : `hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} hover:text-white ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'}`
+                            ? ` dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900  border-l-4 border-indigo-600 shadow-lg`
+                            : `hover: dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900 `
                         }`}
                         aria-current={activeTab === ability.path ? 'page' : undefined}
                       >
@@ -135,19 +127,19 @@ const AdminLayout = ({ children }) => {
 
         {/* System Section */}
         <div className="mt-8 pt-4 border-t border-indigo-700">
-          <div className={`px-3 py-2 rounded-md ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'} flex items-center space-x-2 text-xs font-semibold uppercase mb-2`}>
+          <div className={`px-3 py-2 rounded-md  dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900  flex items-center space-x-2 text-xs font-semibold uppercase mb-2`}>
             <FiSettings size={14} />
             <span>System</span>
           </div>
           <button
-            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} text-sm ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'} transition-colors`}
+            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xltext-sm  dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900 transition-colors`}
             aria-label="Help and Support"
           >
             <FiHelpCircle size={18} />
             <span>Help & Support</span>
           </button>
           <button
-            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl hover:${isDarkMode ? 'bg-gray-700' : 'bg-indigo-700'} text-sm ${isDarkMode ? 'text-gray-200' : 'text-indigo-100'} transition-colors`}
+            className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl  text-sm dark:bg-gray-800 dark:text-white  bg-gray-50 text-gray-900 transition-colors`}
             aria-label="Log out"
           >
             <FiLogOut size={18} />
@@ -167,7 +159,7 @@ const AdminLayout = ({ children }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <main className="flex-1 p-6 mt-16 md:mt-0 overflow-y-auto">
+        <main className="flex-1  mt-16 md:mt-0 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>

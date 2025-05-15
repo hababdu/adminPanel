@@ -1,557 +1,723 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { FiPlus, FiRefreshCw, FiEdit2, FiTrash2, FiSearch, FiX, FiCheck, FiDollarSign } from 'react-icons/fi';
+import {
+  Box, Button, TextField, Typography, Container, Card, CardContent, Avatar,
+  Snackbar, Alert, InputAdornment, Select, MenuItem, FormControl, InputLabel,
+  Grid, Paper, Divider, IconButton, CircularProgress
+} from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import {
+  Fastfood as FastfoodIcon,
+  Description as DescriptionIcon,
+  Kitchen as KitchenIcon,
+  Category as CategoryIcon,
+  SubdirectoryArrowRight as SubcategoryIcon,
+  AttachMoney as PriceIcon,
+  Discount as DiscountIcon,
+  UploadFile as UploadIcon,
+  Scale as ScaleIcon,
+  Add as AddIcon,
+  CheckCircle as CheckIcon,
+  Image as ImageIcon,
+  Close as CloseIcon
+} from '@mui/icons-material';
 
-const ProductFormWithList = () => {
-  const API_URL = 'http://localhost:9000/admin_for/v1/product/';
-  
-  // States
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    price: '', 
+// MUI theme
+const theme = createTheme({
+  palette: {
+    primary: { main: '#3366ff' },
+    secondary: { main: '#ff3d71' },
+    success: { main: '#00d68f' },
+    background: { default: '#f7f9fc' },
+  },
+  typography: {
+    fontFamily: '"Inter", sans-serif',
+    h4: { fontWeight: 700, fontSize: '1.75rem' },
+    h5: { fontWeight: 600, fontSize: '1.25rem' },
+  },
+});
+
+const AddProductPage = () => {
+  // State management
+  const [formData, setFormData] = useState({
+    title: '',
     description: '',
-    category: '',
-    stock: ''
+    kitchen_id: '',
+    category_id: '',
+    subcategory_id: '',
+    price: '',
+    discount: '0.00',
+    unit: 'gram',
   });
-  const [errors, setErrors] = useState({});
+  
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [kitchens, setKitchens] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [message, setMessage] = useState({ text: '', type: '' });
-  const [isFetching, setIsFetching] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [categories, setCategories] = useState(['Electronics', 'Clothing', 'Food', 'Books', 'Other']);
-  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+  const [isSubcategoriesLoading, setIsSubcategoriesLoading] = useState(false);
 
-  // Axios instance
-  const api = axios.create({
-    baseURL: API_URL,
-    timeout: 10000,
-    headers: {
-      'Content-Type': 'application/json',
+  const unitOptions = ['gram', 'liter', 'dona', 'kg', 'ml', 'portion'];
+
+  // Get token from localStorage
+  const getAuthHeader = useCallback(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('Authentication token not found');
     }
-  });
-
-  // Fetch products
-  const fetchProducts = async () => {
-    setIsFetching(true);
-    setMessage({ text: '', type: '' });
-    
-    try {
-      const response = await api.get('/');
-      setProducts(response.data);
-    } catch (error) {
-      handleApiError(error, 'Mahsulotlarni yuklashda xato:');
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    fetchProducts();
+    return { Authorization: `Bearer ${token}` };
   }, []);
 
-  // Form validation
-  const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
+  // Fetch initial data
+  const fetchInitialData = useCallback(async () => {
+    setIsLoading(true);
+    setIsSubcategoriesLoading(true);
+    setError('');
+    
+    try {
+      const headers = getAuthHeader();
+      const [kitchensRes, categoriesRes, subcategoriesRes] = await Promise.all([
+        axios.get('https://hosilbek.pythonanywhere.com/api/user/kitchens/', { headers }),
+        axios.get('https://hosilbek.pythonanywhere.com/api/user/categories/', { headers }),
+        axios.get('https://hosilbek.pythonanywhere.com/api/user/subcategories/', { headers }),
+      ]);
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Nomi kiritilishi shart';
-      isValid = false;
-    } else if (formData.name.length < 2) {
-      newErrors.name = 'Nom 2 ta belgidan kam bo\'lmasligi kerak';
-      isValid = false;
+      // Log API responses for debugging
+      console.log('Kitchens API response:', kitchensRes.data);
+      console.log('Categories API response:', categoriesRes.data);
+      console.log('Subcategories API response:', subcategoriesRes.data);
+
+      // Validate responses
+      if (!Array.isArray(kitchensRes.data)) throw new Error('Kitchens response is not an array');
+      if (!Array.isArray(categoriesRes.data)) throw new Error('Categories response is not an array');
+      if (!Array.isArray(subcategoriesRes.data)) throw new Error('Subcategories response is not an array');
+
+      setKitchens(kitchensRes.data);
+      setCategories(categoriesRes.data);
+      setSubcategories(subcategoriesRes.data);
+
+      // Set default values
+      if (kitchensRes.data.length > 0) {
+        setFormData(prev => ({ ...prev, kitchen_id: kitchensRes.data[0].id }));
+      }
+      if (categoriesRes.data.length > 0 && !formData.category_id) {
+        setFormData(prev => ({ ...prev, category_id: categoriesRes.data[0].id }));
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsLoading(false);
+      setIsSubcategoriesLoading(false);
     }
+  }, [getAuthHeader]);
 
-    if (!formData.price) {
-      newErrors.price = 'Narx kiritilishi shart';
-      isValid = false;
-    } else if (isNaN(formData.price)) {
-      newErrors.price = 'Raqam kiriting';
-      isValid = false;
-    } else if (parseFloat(formData.price) <= 0) {
-      newErrors.price = 'Musbat son kiriting';
-      isValid = false;
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  // Update subcategory_id when category_id changes
+  useEffect(() => {
+    if (!formData.category_id) return;
+
+    const availableSubcategories = subcategories.filter(
+      sub => sub.category && sub.category.id === Number(formData.category_id)
+    );
+    console.log('Filtered subcategories:', availableSubcategories);
+
+    // Reset subcategory_id
+    setFormData(prev => ({ ...prev, subcategory_id: '' }));
+
+    // Set default subcategory_id if available
+    if (availableSubcategories.length > 0) {
+      setFormData(prev => ({ ...prev, subcategory_id: availableSubcategories[0].id }));
     }
+  }, [formData.category_id, subcategories]);
 
-    if (formData.stock && isNaN(formData.stock)) {
-      newErrors.stock = 'Raqam kiriting';
-      isValid = false;
+  // Handle API errors
+  const handleApiError = (error) => {
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          setError('Sessiya tugadi. Iltimos, qayta kiring.');
+          break;
+        case 400:
+          setError('Noto‘g‘ri ma’lumot: ' + (error.response.data.detail || 'Iltimos, kiritilgan ma’lumotlarni tekshiring'));
+          break;
+        case 500:
+          setError('Server xatosi. Iltimos, keyinroq qayta urinib ko‘ring.');
+          break;
+        default:
+          setError(error.response.data.message || 'Xato yuz berdi');
+      }
+    } else if (error.message === 'Authentication token not found') {
+      setError('Iltimos, tizimga kiring');
+    } else {
+      setError(error.message || 'Kutilmagan xato yuz berdi');
     }
-
-    setErrors(newErrors);
-    return isValid;
+    console.error('API xatosi:', error);
   };
 
-  // Handle input changes
+  // Handle photo preview
+  useEffect(() => {
+    if (!photo) {
+      setPhotoPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(photo);
+    setPhotoPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [photo]);
+
+  // Form handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
   };
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setError('Faqat JPG yoki PNG rasm formatlari qabul qilinadi');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Rasm hajmi 5MB dan kichik bo‘lishi kerak');
+      return;
+    }
+
+    setPhoto(file);
+    setError('');
+  };
+
+  const handleRemovePhoto = () => {
+    setPhoto(null);
+    setPhotoPreview(null);
+  };
+
+  // Add new category
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setError('Kategoriya nomi kiritilishi shart');
+      return;
+    }
 
     setIsLoading(true);
-    setMessage({ text: '', type: '' });
+    setError('');
     
     try {
-      const productData = {
-        name: formData.name,
-        price: parseFloat(formData.price),
-        description: formData.description,
-        category: formData.category,
-        stock: formData.stock ? parseInt(formData.stock) : null
-      };
+      const headers = getAuthHeader();
+      const response = await axios.post(
+        'https://hosilbek.pythonanywhere.com/api/user/categories/',
+        { name: newCategoryName.trim() },
+        { headers }
+      );
 
-      let response;
-      if (editingId) {
-        response = await api.put(`/${editingId}/`, productData);
-        setProducts(prev => prev.map(p => p.id === editingId ? response.data : p));
-        setMessage({ text: `${formData.name} muvaffaqiyatli yangilandi!`, type: 'success' });
-      } else {
-        response = await api.post('/', productData);
-        setProducts(prev => [response.data, ...prev]);
-        setMessage({ text: `${formData.name} muvaffaqiyatli qo'shildi!`, type: 'success' });
-      }
-
-      resetForm();
-      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
-    } catch (error) {
-      handleApiError(error, 'Xato:');
+      setCategories(prev => [...prev, response.data]);
+      setFormData(prev => ({ ...prev, category_id: response.data.id }));
+      setNewCategoryName('');
+      setSuccess('Kategoriya muvaffaqiyatli qo‘shildi!');
+    } catch (err) {
+      handleApiError(err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Edit product
-  const handleEdit = (product) => {
-    setEditingId(product.id);
-    setFormData({
-      name: product.name,
-      price: product.price,
-      description: product.description || '',
-      category: product.category || '',
-      stock: product.stock || ''
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  // Add new subcategory
+  const handleAddSubcategory = async () => {
+    if (!newSubcategoryName.trim()) {
+      setError('Subkategoriya nomi kiritilishi shart');
+      return;
+    }
+    if (!formData.category_id) {
+      setError('Iltimos, avval kategoriyani tanlang');
+      return;
+    }
 
-  // Delete product
-  const handleDelete = async (id) => {
-    if (!window.confirm('Ushbu mahsulotni o\'chirishni tasdiqlaysizmi?')) return;
+    setIsLoading(true);
+    setError('');
     
     try {
-      await api.delete(`/${id}/`);
-      setProducts(prev => prev.filter(p => p.id !== id));
-      setMessage({ text: 'Mahsulot muvaffaqiyatli o\'chirildi!', type: 'success' });
-      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
-    } catch (error) {
-      handleApiError(error, 'O\'chirishda xato:');
-    }
-  };
-
-  // Reset form
-  const resetForm = () => {
-    setFormData({ name: '', price: '', description: '', category: '', stock: '' });
-    setEditingId(null);
-  };
-
-  // Handle API errors
-  const handleApiError = (error, prefix = 'Xato:') => {
-    console.error(prefix, error);
-    
-    let errorMessage = 'Noma\'lum xato yuz berdi';
-    if (error.response) {
-      errorMessage = error.response.data.message || 
-                    error.response.data.detail || 
-                    JSON.stringify(error.response.data);
-    } else if (error.request) {
-      errorMessage = 'Serverga ulanib bo\'lmadi';
-    } else {
-      errorMessage = error.message;
-    }
-    
-    setMessage({ text: `${prefix} ${errorMessage}`, type: 'error' });
-  };
-
-  // Sort products
-  const requestSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // Filter and sort products
-  const getFilteredAndSortedProducts = () => {
-    let filteredProducts = products;
-    
-    // Filter by search term
-    if (searchTerm) {
-      filteredProducts = products.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      const headers = getAuthHeader();
+      const response = await axios.post(
+        'https://hosilbek.pythonanywhere.com/api/user/subcategories/',
+        { 
+          name: newSubcategoryName.trim(),
+          category: Number(formData.category_id)
+        },
+        { headers }
       );
+
+      setSubcategories(prev => [...prev, response.data]);
+      setFormData(prev => ({ ...prev, subcategory_id: response.data.id }));
+      setNewSubcategoryName('');
+      setSuccess('Subkategoriya muvaffaqiyatli qo‘shildi!');
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Sort products
-    if (sortConfig.key) {
-      filteredProducts = [...filteredProducts].sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    
-    return filteredProducts;
   };
 
-  const filteredProducts = getFilteredAndSortedProducts();
+  // Form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Validation
+    if (!formData.title.trim()) {
+      setError('Mahsulot nomi kiritilishi shart');
+      return;
+    }
+    if (!formData.description.trim()) {
+      setError('Tavsif kiritilishi shart');
+      return;
+    }
+    if (!formData.kitchen_id) {
+      setError('Oshxona tanlanishi shart');
+      return;
+    }
+    if (!formData.category_id) {
+      setError('Kategoriya tanlanishi shart');
+      return;
+    }
+    if (!formData.subcategory_id) {
+      setError('Subkategoriya tanlanishi shart');
+      return;
+    }
+    if (!formData.price || isNaN(formData.price) || parseFloat(formData.price) <= 0) {
+      setError('Iltimos, to‘g‘ri narx kiriting');
+      return;
+    }
+    if (!photo) {
+      setError('Iltimos, mahsulot rasmini yuklang');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const headers = {
+        ...getAuthHeader(),
+        'Content-Type': 'multipart/form-data'
+      };
+
+      const formDataToSend = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        formDataToSend.append(key, value);
+      });
+      formDataToSend.append('photo', photo);
+
+      const response = await axios.post(
+        'https://hosilbek.pythonanywhere.com/api/user/products/',
+        formDataToSend,
+        { headers }
+      );
+
+      setSuccess('Mahsulot muvaffaqiyatli qo‘shildi!');
+      setFormData({
+        title: '',
+        description: '',
+        kitchen_id: formData.kitchen_id,
+        category_id: formData.category_id,
+        subcategory_id: '',
+        price: '',
+        discount: '0.00',
+        unit: 'gram',
+      });
+      setPhoto(null);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setError('');
+    setSuccess('');
+  };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6">
-      {/* Form section */}
-      <div className="bg-white p-6 rounded-xl shadow-md mb-6 border border-gray-100">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {editingId ? 'Mahsulotni Tahrirlash' : 'Yangi Mahsulot Qo\'shish'}
-          </h2>
-          {editingId && (
-            <button
-              onClick={resetForm}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center"
-            >
-              <FiX className="mr-1" /> Bekor qilish
-            </button>
-          )}
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Product name */}
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Mahsulot nomi <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className={`w-full pl-3 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Mahsulot nomi"
-                />
-                {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
-              </div>
-            </div>
-            
-            {/* Product price */}
-            <div>
-              <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                Narxi <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiDollarSign className="text-gray-400" />
-                </div>
-                <input
-                  type="number"
-                  id="price"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                    errors.price ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-                {errors.price && <p className="mt-1 text-xs text-red-600">{errors.price}</p>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Product category */}
-            <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-                Kategoriya
-              </label>
-              <select
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                <option value="">Tanlang...</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Product stock */}
-            <div>
-              <label htmlFor="stock" className="block text-sm font-medium text-gray-700 mb-1">
-                Qoldiq (soni)
-              </label>
-              <input
-                type="number"
-                id="stock"
-                name="stock"
-                value={formData.stock}
-                onChange={handleChange}
-                className={`w-full pl-3 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                  errors.stock ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Nol cheksiz"
-                min="0"
-              />
-              {errors.stock && <p className="mt-1 text-xs text-red-600">{errors.stock}</p>}
-            </div>
-          </div>
-          
-          {/* Product description */}
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Tavsif
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="3"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
-              placeholder="Mahsulot haqida qo'shimcha ma'lumot..."
-            ></textarea>
-          </div>
-          
-          {/* Submit button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-lg text-white font-medium flex items-center justify-center space-x-2 ${
-                isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-              } transition-colors`}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>{editingId ? 'Saqlanmoqda...' : 'Qo\'shilmoqda...'}</span>
-                </>
-              ) : (
-                <>
-                  <FiPlus />
-                  <span>{editingId ? 'O\'zgarishlarni Saqlash' : 'Mahsulot Qo\'shish'}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-        
-        {/* Message display */}
-        {message.text && (
-          <div className={`mt-4 p-3 rounded-lg text-sm ${
-            message.type === 'success' 
-              ? 'bg-green-100 text-green-800 border border-green-200' 
-              : 'bg-red-100 text-red-800 border border-red-200'
-          }`}>
-            {message.text}
-          </div>
-        )}
-      </div>
-      
-      {/* Products list section */}
-      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-          <h3 className="text-xl font-semibold text-gray-800">Mahsulotlar Ro'yxati</h3>
-          
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            {/* Search input */}
-            <div className="relative flex-grow">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Qidirish..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
-            {/* Refresh button */}
-            <button 
-              onClick={fetchProducts}
-              disabled={isFetching}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center space-x-2 min-w-[120px]"
-            >
-              {isFetching ? (
-                <FiRefreshCw className="animate-spin" />
-              ) : (
-                <FiRefreshCw />
-              )}
-              <span>Yangilash</span>
-            </button>
-          </div>
-        </div>
-        
-        {/* Products table */}
-        {isFetching && products.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-gray-500">Mahsulotlar yuklanmoqda...</p>
-          </div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h4 className="mt-2 text-gray-700 font-medium">Mahsulotlar topilmadi</h4>
-            <p className="mt-1 text-gray-500 text-sm">
-              {searchTerm ? 'Boshqa kalit so\'z bilan qidiring' : 'Yangi mahsulot qo\'shish uchun yuqoridagi formadan foydalaning'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
-                    onClick={() => requestSort('name')}
-                  >
-                    <div className="flex items-center">
-                      Nomi
-                      {sortConfig.key === 'name' && (
-                        <span className="ml-1">
-                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
-                    onClick={() => requestSort('price')}
-                  >
-                    <div className="flex items-center">
-                      Narxi
-                      {sortConfig.key === 'price' && (
-                        <span className="ml-1">
-                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Kategoriya
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Qoldiq
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Harakatlar
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                          {product.description && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {product.description}
-                            </div>
+    <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+        <Container maxWidth="md">
+          <Card sx={{ borderRadius: 2, boxShadow: 3 }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box textAlign="center" mb={4}>
+                <Avatar sx={{ 
+                  bgcolor: 'primary.main', 
+                  width: 64, 
+                  height: 64, 
+                  mx: 'auto',
+                  mb: 2
+                }}>
+                  <FastfoodIcon fontSize="large" />
+                </Avatar>
+                <Typography variant="h4" gutterBottom>
+                  Yangi Mahsulot Qo‘shish
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Quyidagi ma’lumotlarni to‘ldiring
+                </Typography>
+              </Box>
+
+              <Box component="form" onSubmit={handleSubmit}>
+                <Grid container spacing={3}>
+                  {/* Left Column */}
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 3, mb: 3 }}>
+                      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <FastfoodIcon sx={{ mr: 1 }} /> Asosiy Ma’lumotlar
+                      </Typography>
+                      
+                      <TextField
+                        fullWidth
+                        label="Mahsulot Nomi"
+                        name="title"
+                        value={formData.title}
+                        onChange={handleChange}
+                        margin="normal"
+                        required
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <FastfoodIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+
+                      <TextField
+                        fullWidth
+                        label="Tavsif"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        margin="normal"
+                        required
+                        multiline
+                        rows={4}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <DescriptionIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+
+                      <FormControl fullWidth margin="normal" required>
+                        <InputLabel>Oshxona</InputLabel>
+                        <Select
+                          name="kitchen_id"
+                          value={formData.kitchen_id}
+                          onChange={handleChange}
+                          label="Oshxona"
+                          startAdornment={
+                            <InputAdornment position="start">
+                              <KitchenIcon />
+                            </InputAdornment>
+                          }
+                        >
+                          {kitchens.length === 0 ? (
+                            <MenuItem disabled>Oshxonalar mavjud emas</MenuItem>
+                          ) : (
+                            kitchens.map(kitchen => (
+                              <MenuItem key={kitchen.id} value={kitchen.id}>
+                                {kitchen.name}
+                              </MenuItem>
+                            ))
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${parseFloat(product.price).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {product.category || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        product.stock === null 
-                          ? 'bg-gray-100 text-gray-800' 
-                          : product.stock > 10 
-                            ? 'bg-green-100 text-green-800' 
-                            : product.stock > 0 
-                              ? 'bg-yellow-100 text-yellow-800' 
-                              : 'bg-red-100 text-red-800'
-                      }`}>
-                        {product.stock === null ? 'Nol cheksiz' : product.stock}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleEdit(product)}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                          title="Tahrirlash"
+                        </Select>
+                      </FormControl>
+                    </Paper>
+
+                    <Paper sx={{ p: 3 }}>
+                      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PriceIcon sx={{ mr: 1 }} /> Narxlar
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Narx"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleChange}
+                            margin="normal"
+                            required
+                            type="number"
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <PriceIcon />
+                                </InputAdornment>
+                              ),
+                              inputProps: { min: 0, step: 0.01 }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Chegirma"
+                            name="discount"
+                            value={formData.discount}
+                            onChange={handleChange}
+                            margin="normal"
+                            required
+                            type="number"
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <DiscountIcon />
+                                </InputAdornment>
+                              ),
+                              inputProps: { min: 0, step: 0.01 }
+                            }}
+                          />
+                        </Grid>
+                      </Grid>
+
+                      <FormControl fullWidth margin="normal" required>
+                        <InputLabel>O‘lchov Birligi</InputLabel>
+                        <Select
+                          name="unit"
+                          value={formData.unit}
+                          onChange={handleChange}
+                          label="O‘lchov Birligi"
+                          startAdornment={
+                            <InputAdornment position="start">
+                              <ScaleIcon />
+                            </InputAdornment>
+                          }
                         >
-                          <FiEdit2 />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                          title="O'chirish"
+                          {unitOptions.map(unit => (
+                            <MenuItem key={unit} value={unit}>
+                              {unit}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Paper>
+                  </Grid>
+
+                  {/* Right Column */}
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 3, mb: 3 }}>
+                      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <CategoryIcon sx={{ mr: 1 }} /> Kategoriyalar
+                      </Typography>
+                      
+                      <FormControl fullWidth margin="normal" required>
+                        <InputLabel>Kategoriya</InputLabel>
+                        <Select
+                          name="category_id"
+                          value={formData.category_id}
+                          onChange={handleChange}
+                          label="Kategoriya"
+                          startAdornment={
+                            <InputAdornment position="start">
+                              <CategoryIcon />
+                            </InputAdornment>
+                          }
                         >
-                          <FiTrash2 />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+                          {categories.length === 0 ? (
+                            <MenuItem disabled>Kategoriyalar mavjud emas</MenuItem>
+                          ) : (
+                            categories.map(category => (
+                              <MenuItem key={category.id} value={category.id}>
+                                {category.name}
+                              </MenuItem>
+                            ))
+                          )}
+                        </Select>
+                      </FormControl>
+
+                      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                        <TextField
+                          fullWidth
+                          label="Yangi Kategoriya"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          size="small"
+                        />
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={handleAddCategory}
+                          disabled={isLoading || !newCategoryName.trim()}
+                          startIcon={<AddIcon />}
+                          sx={{ whiteSpace: 'nowrap' }}
+                        >
+                          Qo‘shish
+                        </Button>
+                      </Box>
+
+                      <Divider sx={{ my: 3 }} />
+
+                      <FormControl fullWidth margin="normal" required>
+                        <InputLabel>Subkategoriya</InputLabel>
+                        <Select
+                          name="subcategory_id"
+                          value={formData.subcategory_id}
+                          onChange={handleChange}
+                          label="Subkategoriya"
+                          startAdornment={
+                            <InputAdornment position="start">
+                              <SubcategoryIcon />
+                            </InputAdornment>
+                          }
+                          disabled={isSubcategoriesLoading || !formData.category_id}
+                        >
+                          {isSubcategoriesLoading ? (
+                            <MenuItem disabled>
+                              <CircularProgress size={20} sx={{ mr: 2 }} /> Yuklanmoqda...
+                            </MenuItem>
+                          ) : !formData.category_id ? (
+                            <MenuItem disabled>Avval kategoriyani tanlang</MenuItem>
+                          ) : subcategories.filter(sub => sub.category && sub.category.id === Number(formData.category_id)).length === 0 ? (
+                            <MenuItem disabled>Subkategoriyalar mavjud emas. Quyida qo‘shing.</MenuItem>
+                          ) : (
+                            subcategories
+                              .filter(sub => sub.category && sub.category.id === Number(formData.category_id))
+                              .map(subcategory => (
+                                <MenuItem key={subcategory.id} value={subcategory.id}>
+                                  {subcategory.name}
+                                </MenuItem>
+                              ))
+                          )}
+                        </Select>
+                      </FormControl>
+
+                      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                        <TextField
+                          fullWidth
+                          label="Yangi Subkategoriya"
+                          value={newSubcategoryName}
+                          onChange={(e) => setNewSubcategoryName(e.target.value)}
+                          size="small"
+                        />
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={handleAddSubcategory}
+                          disabled={isLoading || !newSubcategoryName.trim() || !formData.category_id}
+                          startIcon={<AddIcon />}
+                          sx={{ whiteSpace: 'nowrap' }}
+                        >
+                          Qo‘shish
+                        </Button>
+                      </Box>
+                    </Paper>
+
+                    <Paper sx={{ p: 3 }}>
+                      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <ImageIcon sx={{ mr: 1 }} /> Mahsulot Rasmi
+                      </Typography>
+                      
+                      {photoPreview ? (
+                        <Box sx={{ position: 'relative' }}>
+                          <Box
+                            component="img"
+                            src={photoPreview}
+                            alt="Preview"
+                            sx={{ 
+                              width: '100%', 
+                              height: 200,
+                              objectFit: 'cover',
+                              borderRadius: 1,
+                              mb: 2
+                            }}
+                          />
+                          <IconButton
+                            onClick={handleRemovePhoto}
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              backgroundColor: 'rgba(0,0,0,0.5)',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: 'rgba(0,0,0,0.7)'
+                              }
+                            }}
+                          >
+                            <CloseIcon />
+                          </IconButton>
+                        </Box>
+                      ) : (
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          fullWidth
+                          sx={{ 
+                            py: 3,
+                            borderStyle: 'dashed',
+                            mb: 2
+                          }}
+                          startIcon={<UploadIcon />}
+                        >
+                          Rasm Yuklash
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            onChange={handleFileChange}
+                          />
+                        </Button>
+                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        JPEG yoki PNG, maksimal 5MB
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                <Box sx={{ mt: 4, textAlign: 'center' }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={isLoading}
+                    startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <CheckIcon />}
+                    sx={{ px: 6 }}
+                  >
+                    {isLoading ? 'Yuklanmoqda...' : 'Mahsulot Qo‘shish'}
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          <Snackbar
+            open={!!error || !!success}
+            autoHideDuration={6000}
+            onClose={handleCloseSnackbar}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <Alert 
+              onClose={handleCloseSnackbar} 
+              severity={error ? 'error' : 'success'}
+              sx={{ width: '100%' }}
+            >
+              {error || success}
+            </Alert>
+          </Snackbar>
+        </Container>
+      </Box>
+    </ThemeProvider>
   );
 };
 
-export default ProductFormWithList;
+export default AddProductPage;

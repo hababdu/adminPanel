@@ -2,11 +2,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import adminAbilitiesReducer from './adminAbilitiesSlice';
 import searchReducer from './searchSlice'; // ✅ qo‘shildi
+import authReducer from './authSlice';
 
 const store = configureStore({
   reducer: {
     adminAbilities: adminAbilitiesReducer , // ✅ adminAbilitiesReducer 
-    search: searchReducer // ✅ searchReducer
+    search: searchReducer, // ✅ searchReducer
+    auth: authReducer
   }
 });
 
