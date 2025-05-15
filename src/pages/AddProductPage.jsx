@@ -68,7 +68,7 @@ const AddProductPage = () => {
   const getAuthHeader = useCallback(() => {
     const token = localStorage.getItem('token');
     if (!token) {
-      throw new Error('Authentication token not found');
+      throw new Error('Autentifikatsiya tokeni topilmadi');
     }
     return { Authorization: `Bearer ${token}` };
   }, []);
@@ -87,21 +87,18 @@ const AddProductPage = () => {
         axios.get('https://hosilbek.pythonanywhere.com/api/user/subcategories/', { headers }),
       ]);
 
-      // Log API responses for debugging
       console.log('Kitchens API response:', kitchensRes.data);
       console.log('Categories API response:', categoriesRes.data);
       console.log('Subcategories API response:', subcategoriesRes.data);
 
-      // Validate responses
-      if (!Array.isArray(kitchensRes.data)) throw new Error('Kitchens response is not an array');
-      if (!Array.isArray(categoriesRes.data)) throw new Error('Categories response is not an array');
-      if (!Array.isArray(subcategoriesRes.data)) throw new Error('Subcategories response is not an array');
+      if (!Array.isArray(kitchensRes.data)) throw new Error('Oshxonalar ro‘yxati massiv emas');
+      if (!Array.isArray(categoriesRes.data)) throw new Error('Kategoriyalar ro‘yxati massiv emas');
+      if (!Array.isArray(subcategoriesRes.data)) throw new Error('Subkategoriyalar ro‘yxati massiv emas');
 
       setKitchens(kitchensRes.data);
       setCategories(categoriesRes.data);
       setSubcategories(subcategoriesRes.data);
 
-      // Set default values
       if (kitchensRes.data.length > 0) {
         setFormData(prev => ({ ...prev, kitchen_id: kitchensRes.data[0].id }));
       }
@@ -129,10 +126,8 @@ const AddProductPage = () => {
     );
     console.log('Filtered subcategories:', availableSubcategories);
 
-    // Reset subcategory_id
     setFormData(prev => ({ ...prev, subcategory_id: '' }));
 
-    // Set default subcategory_id if available
     if (availableSubcategories.length > 0) {
       setFormData(prev => ({ ...prev, subcategory_id: availableSubcategories[0].id }));
     }
@@ -141,12 +136,18 @@ const AddProductPage = () => {
   // Handle API errors
   const handleApiError = (error) => {
     if (error.response) {
+      const errorDetail = error.response.data;
       switch (error.response.status) {
         case 401:
           setError('Sessiya tugadi. Iltimos, qayta kiring.');
           break;
         case 400:
-          setError('Noto‘g‘ri ma’lumot: ' + (error.response.data.detail || 'Iltimos, kiritilgan ma’lumotlarni tekshiring'));
+          if (typeof errorDetail === 'object') {
+            const errors = Object.values(errorDetail).flat().join(', ');
+            setError(`Noto‘g‘ri ma’lumot: ${errors || 'Iltimos, kiritilgan ma’lumotlarni tekshiring'}`);
+          } else {
+            setError(`Noto‘g‘ri ma’lumot: ${errorDetail || 'Iltimos, kiritilgan ma’lumotlarni tekshiring'}`);
+          }
           break;
         case 500:
           setError('Server xatosi. Iltimos, keyinroq qayta urinib ko‘ring.');
@@ -154,12 +155,12 @@ const AddProductPage = () => {
         default:
           setError(error.response.data.message || 'Xato yuz berdi');
       }
-    } else if (error.message === 'Authentication token not found') {
+    } else if (error.message === 'Autentifikatsiya tokeni topilmadi') {
       setError('Iltimos, tizimga kiring');
     } else {
       setError(error.message || 'Kutilmagan xato yuz berdi');
     }
-    console.error('API xatosi:', error);
+    console.error('API xatosi:', error.response?.data || error);
   };
 
   // Handle photo preview
@@ -236,8 +237,8 @@ const AddProductPage = () => {
       setError('Subkategoriya nomi kiritilishi shart');
       return;
     }
-    if (!formData.category_id) {
-      setError('Iltimos, avval kategoriyani tanlang');
+    if (!formData.category_id || isNaN(Number(formData.category_id))) {
+      setError('Iltimos, to‘g‘ri kategoriyani tanlang');
       return;
     }
 
@@ -246,14 +247,19 @@ const AddProductPage = () => {
     
     try {
       const headers = getAuthHeader();
+      const payload = {
+        name: newSubcategoryName.trim(),
+        category_id: Number(formData.category_id),
+      };
+      console.log('Subcategory POST payload:', payload);
+
       const response = await axios.post(
         'https://hosilbek.pythonanywhere.com/api/user/subcategories/',
-        { 
-          name: newSubcategoryName.trim(),
-          category: Number(formData.category_id)
-        },
+        payload,
         { headers }
       );
+
+      console.log('Subcategory API response:', response.data);
 
       setSubcategories(prev => [...prev, response.data]);
       setFormData(prev => ({ ...prev, subcategory_id: response.data.id }));
@@ -272,7 +278,6 @@ const AddProductPage = () => {
     setError('');
     setSuccess('');
 
-    // Validation
     if (!formData.title.trim()) {
       setError('Mahsulot nomi kiritilishi shart');
       return;
@@ -372,7 +377,6 @@ const AddProductPage = () => {
 
               <Box component="form" onSubmit={handleSubmit}>
                 <Grid container spacing={3}>
-                  {/* Left Column */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, mb: 3 }}>
                       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
@@ -512,7 +516,6 @@ const AddProductPage = () => {
                     </Paper>
                   </Grid>
 
-                  {/* Right Column */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, mb: 3 }}>
                       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
