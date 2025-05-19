@@ -1,274 +1,556 @@
-import React, { useState } from 'react';
-import { FiUpload, FiUser, FiPhone, FiMail, FiPlus, FiArrowLeft } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Avatar,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  Snackbar,
+  Alert as MuiAlert,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid
+} from '@mui/material';
+import {
+  Person as PersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  Close as CloseIcon,
+  Visibility as VisibilityIcon
+} from '@mui/icons-material';
 
-function AddCourierPage() {
-  const navigate = useNavigate();
+const CouriersPage = () => {
+  const [couriers, setCouriers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedCourier, setSelectedCourier] = useState(null);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
+    username: '',
     email: '',
+    password: '',
+    phone_number: '',
     photo: null,
-    vehicleType: 'bike',
-    status: 'active'
+    passport_series: '',
+    passport_number: ''
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  const token = localStorage.getItem('token');
 
-  const handleFileChange = (e) => {
-    setFormData(prev => ({
-      ...prev,
-      photo: e.target.files[0]
-    }));
-  };
+  // Barcha kuryerlarni olish
+  useEffect(() => {
+    const fetchCouriers = async () => {
+      try {
+        if (!token) {
+          throw new Error('Avtorizatsiya talab qilinadi. Iltimos, tizimga kiring.');
+        }
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone is required';
-    } else if (!/^[\d\s+-]+$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number';
-    }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+        const response = await axios.get(
+          'https://hosilbek.pythonanywhere.com/api/user/couriers/',
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    setIsSubmitting(true);
-    
+        if (response.data && Array.isArray(response.data)) {
+          setCouriers(response.data);
+        } else {
+          throw new Error('Kuryerlar ma\'lumotlari topilmadi');
+        }
+      } catch (error) {
+        console.error('Kuryerlarni olishda xatolik:', error);
+        setError(error.response?.data?.message || error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCouriers();
+  }, [token, success]);
+
+  // Yangi kuryer qo'shish
+  const handleAddCourier = async () => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      setLoading(true);
+      setError('');
+  
+      // Ma'lumotlarni tekshirish
+      if (!formData.username || !formData.email || !formData.password || 
+          !formData.phone_number || !formData.passport_series || !formData.passport_number) {
+        throw new Error('Barcha majburiy maydonlarni to\'ldiring');
+      }
+  
+      const formDataToSend = new FormData();
+      formDataToSend.append('username', formData.username);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('phone_number', formData.phone_number);
+      formDataToSend.append('passport_series', formData.passport_series);
+      formDataToSend.append('passport_number', formData.passport_number);
       
-      console.log('Courier data:', formData);
-      setSuccessMessage('Courier added successfully!');
-      
-      // Reset form after successful submission
-      setTimeout(() => {
+      // Agar rasm tanlangan bo'lsa
+      if (formData.photo) {
+        formDataToSend.append('photo', formData.photo);
+      }
+  
+      // Debug uchun FormData ni ko'rish
+      for (let [key, value] of formDataToSend.entries()) {
+        console.log(key, value);
+      }
+  
+      const response = await axios.post(
+        'https://hosilbek.pythonanywhere.com/api/user/couriers/',
+        formDataToSend,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: 10000
+        }
+      );
+  
+      console.log('Server javobi:', response);
+  
+      if (response.status === 201) {
+        setSuccess('Kuryer muvaffaqiyatli qo\'shildi');
+        setOpenAddDialog(false);
         setFormData({
-          name: '',
-          phone: '',
+          username: '',
           email: '',
+          password: '',
+          phone_number: '',
           photo: null,
-          vehicleType: 'bike',
-          status: 'active'
+          passport_series: '',
+          passport_number: ''
         });
-        setSuccessMessage('');
-      }, 3000);
+      }
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('Kuryer qo\'shishda xatolik:', error);
+      
+      let errorMessage = 'Kuryer qo\'shishda xatolik yuz berdi';
+      
+      if (error.response) {
+        // Agar serverdan tushunarli xabar kelgan bo'lsa
+        if (error.response.data && typeof error.response.data === 'object') {
+          errorMessage = error.response.data.detail || 
+                        error.response.data.message || 
+                        JSON.stringify(error.response.data);
+        } else {
+          errorMessage = `Server xatosi (${error.response.status})`;
+        }
+        
+        console.error('Server xato javobi:', {
+          status: error.response.status,
+          headers: error.response.headers,
+          data: error.response.data,
+        });
+      } else if (error.request) {
+        errorMessage = 'Serverga ulanib bo\'lmadi. Internet aloqasini tekshiring';
+      } else {
+        errorMessage = error.message || 'Noma\'lum xatolik yuz berdi';
+      }
+      
+      setError(errorMessage);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
+
+  // Kuryerni o'chirish
+  const handleDeleteCourier = async (courierId) => {
+    try {
+      const response = await axios.delete(
+        `https://hosilbek.pythonanywhere.com/api/user/couriers/${courierId}/`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.status === 204) {
+        setSuccess('Kuryer muvaffaqiyatli o\'chirildi');
+      }
+    } catch (error) {
+      console.error('Kuryerni o\'chirishda xatolik:', error);
+      setError(error.response?.data?.message || error.message);
+    }
+  };
+
+  // Form inputlarini boshqarish
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  };
+
+  // Rasmni tanlash
+  const handleFileChange = (e) => {
+    setFormData({
+      ...formData,
+      photo: e.target.files[0]
+    });
+  };
+
+  // Modal oynalarni yopish
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setSelectedCourier(null);
+  };
+
+  const handleCloseAddDialog = () => {
+    setOpenAddDialog(false);
+  };
+
+  const handleCloseSnackbar = () => {
+    setError('');
+    setSuccess('');
+  };
+
+  if (loading && couriers.length === 0) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+
+  if (error && couriers.length === 0) {
+    return (
+      <Box p={3}>
+        <MuiAlert severity="error">
+          {error}
+        </MuiAlert>
+        <Box mt={2}>
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={() => window.location.reload()}
+          >
+            Qayta urinish
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-lg">
-        <div className="flex items-center mb-6">
-          <button 
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-full hover:bg-gray-100 mr-2"
-          >
-            <FiArrowLeft className="text-gray-600" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-800">Add New Courier</h1>
-        </div>
-        
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg">
-            {successMessage}
-          </div>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Photo Upload */}
-          <div className="flex flex-col items-center mb-4">
-            <label className="relative cursor-pointer">
-              <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-400">
-                {formData.photo ? (
-                  <img 
-                    src={URL.createObjectURL(formData.photo)} 
-                    alt="Courier preview" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="text-center p-2">
-                    <FiUpload className="mx-auto text-gray-400 text-2xl mb-1" />
-                    <span className="text-xs text-gray-500">Upload Photo</span>
-                  </div>
-                )}
-              </div>
-              <input
-                type="file"
-                name="photo"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
-          </div>
-          
-          {/* Name Field */}
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiUser className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="John Doe"
-              />
-            </div>
-            {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
-          </div>
-          
-          {/* Phone Field */}
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-              Phone Number
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiPhone className="text-gray-400" />
-              </div>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                className={`block w-full pl-10 pr-3 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="+1 234 567 890"
-              />
-            </div>
-            {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
-          </div>
-          
-          {/* Email Field */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiMail className="text-gray-400" />
-              </div>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="john@example.com"
-              />
-            </div>
-            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
-          </div>
-          
-          {/* Vehicle Type */}
-          <div>
-            <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700 mb-1">
-              Vehicle Type
-            </label>
-            <select
-              id="vehicleType"
-              name="vehicleType"
-              value={formData.vehicleType}
-              onChange={handleChange}
-              className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="bike">Bike</option>
-              <option value="car">Car</option>
-              <option value="scooter">Scooter</option>
-              <option value="walking">Walking</option>
-            </select>
-          </div>
-          
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <div className="flex space-x-4">
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  name="status"
-                  value="active"
-                  checked={formData.status === 'active'}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-gray-700">Active</span>
-              </label>
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  name="status"
-                  value="inactive"
-                  checked={formData.status === 'inactive'}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-gray-700">Inactive</span>
-              </label>
-            </div>
-          </div>
-          
-          {/* Submit Button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}
-            >
-              {isSubmitting ? (
-                'Processing...'
-              ) : (
-                <>
-                  <FiPlus className="mr-2" />
-                  Add Courier
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Kuryerlar Boshqaruvi
+      </Typography>
+      <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+        Jami: {couriers.length} ta kuryer
+      </Typography>
 
-export default AddCourierPage;
+      <Box sx={{ mb: 3 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => setOpenAddDialog(true)}
+        >
+          Yangi Kuryer Qo'shish
+        </Button>
+      </Box>
+
+      <Card>
+        <CardContent>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="simple table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Kuryer</TableCell>
+                  <TableCell>Telefon</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Passport</TableCell>
+                  <TableCell align="right">Harakatlar</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {couriers.map((courier) => (
+                  <TableRow
+                    key={courier.id}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <TableCell component="th" scope="row">
+                      {courier.id}
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" alignItems="center">
+                        <Avatar 
+                          src={courier.photo} 
+                          sx={{ width: 40, height: 40, mr: 2 }}
+                        >
+                          <PersonIcon />
+                        </Avatar>
+                        {courier.username}
+                      </Box>
+                    </TableCell>
+                    <TableCell>{courier.phone_number}</TableCell>
+                    <TableCell>{courier.email}</TableCell>
+                    <TableCell>
+                      {courier.passport_series} {courier.passport_number}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Batafsil">
+                        <IconButton
+                          color="primary"
+                          onClick={() => {
+                            setSelectedCourier(courier);
+                            setOpenDialog(true);
+                          }}
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="O'chirish">
+                        <IconButton
+                          color="error"
+                          onClick={() => handleDeleteCourier(courier.id)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
+      {/* Kuryer tafsilotlari dialogi */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Kuryer tafsilotlari</Typography>
+            <IconButton onClick={handleCloseDialog}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedCourier && (
+            <Box>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Avatar 
+                  src={selectedCourier.photo} 
+                  sx={{ width: 80, height: 80, mr: 2 }}
+                >
+                  <PersonIcon fontSize="large" />
+                </Avatar>
+                <Box>
+                  <Typography variant="h5">{selectedCourier.username}</Typography>
+                  <Typography variant="subtitle1" color="textSecondary">
+                    ID: {selectedCourier.id}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Email:</strong> {selectedCourier.email}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Telefon:</strong> {selectedCourier.phone_number}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Passport seriya:</strong> {selectedCourier.passport_series}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Passport raqam:</strong> {selectedCourier.passport_number}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Qo'shilgan sana:</strong> {new Date(selectedCourier.created_at).toLocaleString()}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} color="primary">
+            Yopish
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Yangi kuryer qo'shish dialogi */}
+      <Dialog open={openAddDialog} onClose={handleCloseAddDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Yangi Kuryer Qo'shish</Typography>
+            <IconButton onClick={handleCloseAddDialog}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box component="form" sx={{ pt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Foydalanuvchi nomi"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Parol"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Telefon raqami"
+                  name="phone_number"
+                  value={formData.phone_number}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="+998901234567"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Passport seriyasi"
+                  name="passport_series"
+                  value={formData.passport_series}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Passport raqami"
+                  name="passport_number"
+                  value={formData.passport_number}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  fullWidth
+                  sx={{ mt: 1 }}
+                >
+                  Rasm Yuklash
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                </Button>
+                {formData.photo && (
+                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                    Tanlangan fayl: {formData.photo.name}
+                  </Typography>
+                )}
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseAddDialog} color="secondary">
+            Bekor qilish
+          </Button>
+          <Button 
+            onClick={handleAddCourier} 
+            color="primary"
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : "Qo'shish"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Xabar qutisi */}
+      <Snackbar
+        open={!!success || !!error}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <MuiAlert
+          onClose={handleCloseSnackbar}
+          severity={error ? 'error' : 'success'}
+          elevation={6}
+          variant="filled"
+        >
+          {error || success}
+        </MuiAlert>
+      </Snackbar>
+    </Box>
+  );
+};
+
+export default CouriersPage;
