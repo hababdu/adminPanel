@@ -37,6 +37,7 @@ const OrdersPage = () => {
 
       if (response.data && Array.isArray(response.data)) {
         setOrders(response.data);
+        console.log('Buyurtmalar muvaffaqiyatli olindi:', response.data);
       } else {
         throw new Error('Ma\'lumotlar formati noto\'g\'ri');
       }

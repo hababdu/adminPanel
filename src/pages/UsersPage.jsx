@@ -66,6 +66,7 @@ const AllUsersList = () => {
 
         if (response.data && Array.isArray(response.data)) {
           setUsers(response.data);
+          console.log('Foydalanuvchilar muvaffaqiyatli olindi:', response.data);
         } else {
           throw new Error('Foydalanuvchilar ma\'lumotlari topilmadi');
         }
@@ -196,7 +197,7 @@ const AllUsersList = () => {
                     <TableCell component="th" scope="row">
                       {user.id}
                     </TableCell>
-                    <TableCell>{user.user}</TableCell>
+                    <TableCell>{user.user.username}</TableCell>
                     <TableCell>{user.phone_number}</TableCell>
                     <TableCell>{user.address}</TableCell>
                     <TableCell>
@@ -251,7 +252,7 @@ const AllUsersList = () => {
                   <PersonIcon fontSize="large" />
                 </Avatar>
                 <Box>
-                  <Typography variant="h5">{selectedUser.user}</Typography>
+                  <Typography variant="h5">{selectedUser.user.username}</Typography>
                   <Typography variant="subtitle1" color="textSecondary">
                     ID: {selectedUser.id}
                   </Typography>
