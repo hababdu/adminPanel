@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchUsers, deleteUser, clearError } from '../redax/usersSlice';
 import {
   Box,
   Typography,
@@ -22,64 +23,31 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   Home as HomeIcon,
   LocationOn as LocationIcon,
+  Visibility as VisibilityIcon,
+  Close as CloseIcon,
+  Refresh as RefreshIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
-  Close as CloseIcon
 } from '@mui/icons-material';
 
 const AllUsersList = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const dispatch = useDispatch();
+  const { users, loading, error } = useSelector((state) => state.users);
   const [selectedUser, setSelectedUser] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, userId: null });
+  const [success, setSuccess] = useState('');
 
-  const token = localStorage.getItem('token');
-  const API_BASE_URL = 'https://hosilbek.pythonanywhere.com/api/user/';
-
-  useEffect(() => {
-    const fetchAllUsers = async () => {
-      try {
-        if (!token) {
-          throw new Error('Avtorizatsiya talab qilinadi. Iltimos, tizimga kiring.');
-        }
-
-        const response = await axios.get(
-          `${API_BASE_URL}/user-profiles/`, // Changed from /user/orders/ to /user-profiles/
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        if (response.data && Array.isArray(response.data)) {
-          setUsers(response.data);
-          console.log('Foydalanuvchilar muvaffaqiyatli olindi:', response.data);
-        } else {
-          throw new Error('Foydalanuvchilar ma\'lumotlari topilmadi');
-        }
-      } catch (error) {
-        console.error('Foydalanuvchilarni olishda xatolik:', error);
-        setError(error.response?.data?.message || error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllUsers();
-  }, [token, success]); // Added success to dependencies to refresh after delete
+  const handleRefresh = () => {
+    dispatch(fetchUsers());
+  };
 
   const handleViewDetails = (user) => {
     setSelectedUser(user);
@@ -100,32 +68,21 @@ const AllUsersList = () => {
   };
 
   const handleDeleteUser = async () => {
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/user-profiles/${deleteConfirm.userId}/`, // Changed from /user/user-profiles/ to /user-profiles/
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.status === 204) {
-        setUsers(users.filter(user => user.id !== deleteConfirm.userId));
-        setSuccess('Foydalanuvchi muvaffaqiyatli o\'chirildi');
-      }
-    } catch (error) {
-      console.error('Foydalanuvchini o\'chirishda xatolik:', error);
-      setError(error.response?.data?.message || error.message);
-    } finally {
-      setDeleteConfirm({ open: false, userId: null });
+    const result = await dispatch(deleteUser(deleteConfirm.userId));
+    if (deleteUser.fulfilled.match(result)) {
+      setSuccess('Foydalanuvchi muvaffaqiyatli o‘chirildi');
     }
+    setDeleteConfirm({ open: false, userId: null });
   };
 
   const handleCloseSnackbar = () => {
-    setError('');
     setSuccess('');
+    dispatch(clearError());
+  };
+
+  const handleLoginRedirect = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/register';
   };
 
   if (loading) {
@@ -136,21 +93,23 @@ const AllUsersList = () => {
     );
   }
 
-  if (error && users.length === 0) {
+  if (error) {
     return (
       <Box p={3}>
-        <MuiAlert severity="error">
+        <MuiAlert
+          severity="error"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={error.includes('Autentifikatsiya xatosi') ? handleLoginRedirect : handleRefresh}
+            >
+              {error.includes('Autentifikatsiya xatosi') ? 'Qayta kirish' : 'Qayta urinish'}
+            </Button>
+          }
+        >
           {error}
         </MuiAlert>
-        <Box mt={2}>
-          <Button 
-            variant="contained" 
-            color="primary"
-            onClick={() => window.location.reload()}
-          >
-            Qayta urinish
-          </Button>
-        </Box>
       </Box>
     );
   }
@@ -161,15 +120,29 @@ const AllUsersList = () => {
         <MuiAlert severity="info">
           Foydalanuvchilar ro'yxati bo'sh
         </MuiAlert>
+        <Box mt={2}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleRefresh}
+          >
+            Yangilash
+          </Button>
+        </Box>
       </Box>
     );
   }
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Barcha Foydalanuvchilar
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Barcha Foydalanuvchilar
+        </Typography>
+        <IconButton color="primary" onClick={handleRefresh} title="Yangilash">
+          <RefreshIcon />
+        </IconButton>
+      </Box>
       <Typography variant="subtitle1" color="textSecondary" gutterBottom>
         Jami: {users.length} ta foydalanuvchi
       </Typography>
@@ -194,34 +167,26 @@ const AllUsersList = () => {
                     key={user.id}
                     sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                   >
-                    <TableCell component="th" scope="row">
-                      {user.id}
-                    </TableCell>
-                    <TableCell>{user.user.username}</TableCell>
-                    <TableCell>{user.phone_number}</TableCell>
-                    <TableCell>{user.address}</TableCell>
-                    <TableCell>
-                      {new Date(user.created_at).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell component="th" scope="row">{user.id}</TableCell>
+                    <TableCell>{user.user?.username || 'Noma‘lum'}</TableCell>
+                    <TableCell>{user.phone_number || '—'}</TableCell>
+                    <TableCell>{user.address || '—'}</TableCell>
+                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                     <TableCell align="right">
                       <Tooltip title="Batafsil">
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleViewDetails(user)}
-                        >
+                        <IconButton color="primary" onClick={() => handleViewDetails(user)}>
                           <VisibilityIcon />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Tahrirlash">
-                        <IconButton color="secondary">
-                          <EditIcon />
-                        </IconButton>
+                      <Tooltip title="Tahrirlash (hozirda ishlamaydi)">
+                        <span>
+                          <IconButton color="secondary" disabled>
+                            <EditIcon />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                       <Tooltip title="O'chirish">
-                        <IconButton
-                          color="error"
-                          onClick={() => handleDeleteClick(user.id)}
-                        >
+                        <IconButton color="error" onClick={() => handleDeleteClick(user.id)}>
                           <DeleteIcon />
                         </IconButton>
                       </Tooltip>
@@ -234,7 +199,6 @@ const AllUsersList = () => {
         </CardContent>
       </Card>
 
-      {/* Foydalanuvchi tafsilotlari dialogi */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -252,27 +216,21 @@ const AllUsersList = () => {
                   <PersonIcon fontSize="large" />
                 </Avatar>
                 <Box>
-                  <Typography variant="h5">{selectedUser.user.username}</Typography>
+                  <Typography variant="h5">{selectedUser.user?.username || 'Noma‘lum'}</Typography>
                   <Typography variant="subtitle1" color="textSecondary">
                     ID: {selectedUser.id}
                   </Typography>
                 </Box>
               </Box>
-
               <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: 'max-content auto', gap: 2 }}>
                 <Typography component="dt" fontWeight="bold">Telefon:</Typography>
-                <Typography component="dd">{selectedUser.phone_number}</Typography>
-
+                <Typography component="dd">{selectedUser.phone_number || '—'}</Typography>
                 <Typography component="dt" fontWeight="bold">Manzil:</Typography>
-                <Typography component="dd">{selectedUser.address}</Typography>
-
+                <Typography component="dd">{selectedUser.address || '—'}</Typography>
                 <Typography component="dt" fontWeight="bold">Joylashuv:</Typography>
-                <Typography component="dd">{selectedUser.location}</Typography>
-
+                <Typography component="dd">{selectedUser.location || '—'}</Typography>
                 <Typography component="dt" fontWeight="bold">Ro'yxatdan o'tgan sana:</Typography>
-                <Typography component="dd">
-                  {new Date(selectedUser.created_at).toLocaleString()}
-                </Typography>
+                <Typography component="dd">{new Date(selectedUser.created_at).toLocaleString()}</Typography>
               </Box>
             </Box>
           )}
@@ -284,7 +242,6 @@ const AllUsersList = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm.open} onClose={handleDeleteCancel}>
         <DialogTitle>Foydalanuvchini o'chirish</DialogTitle>
         <DialogContent>
@@ -298,7 +255,6 @@ const AllUsersList = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Xabar qutisi */}
       <Snackbar
         open={!!success || !!error}
         autoHideDuration={6000}

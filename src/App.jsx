@@ -11,6 +11,7 @@ import Register from './pages/Register';
 
 // Import page components using lazy loading
 const AddProductPage = React.lazy(() => import('./pages/AddProductPage'));
+const OrderDetails = React.lazy(() => import('./pages/OrderDetails'));
 const ProductsPage = React.lazy(() => import('./pages/ProductsPage'));
 const CategoriesPage = React.lazy(() => import('./pages/CategoriesPage'));
 const TagsPage = React.lazy(() => import('./pages/TagsPage'));
@@ -161,6 +162,7 @@ function App() {
                   </AdminLayout>
                 }
               />
+<Route path="/order-details/:id" element={<OrderDetails />} />
 
               {/* Product Routes */}
               {productRoutes.map((route, index) => (
@@ -213,7 +215,6 @@ function App() {
                   }
                 />
               ))}
-
               {/* Analytics & Reports */}
               {analyticsRoutes.map((route, index) => (
                 <Route
