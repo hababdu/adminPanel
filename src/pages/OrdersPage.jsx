@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -34,7 +35,9 @@ import {
   Collapse,
   useMediaQuery,
   ThemeProvider,
-  createTheme
+  createTheme,
+  MenuItem,
+  Select
 } from '@mui/material';
 import {
   Refresh,
@@ -42,7 +45,6 @@ import {
   LocalShipping,
   Restaurant,
   Payment,
-  LocationOn,
   Phone,
   AccessTime,
   Notifications as NotificationsIcon,
@@ -51,14 +53,22 @@ import {
   Assignment,
   Edit,
   Timer,
-  Search
+  Search,
+  Person,
+  Delete
 } from '@mui/icons-material';
+import audio from '../assets/notification.mp3';
 
+// API manzillari
 const ORDERS_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
+const COURIERS_API = 'https://hosilbek.pythonanywhere.com/api/user/couriers/';
 const BASE_URL = 'https://hosilbek.pythonanywhere.com';
-const ACCEPT_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/'; // Assumed endpoint
+const ACCEPT_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
+const REMOVE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/remove_courier/';
+const ASSIGN_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/assign_courier/';
+const REPLACE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/replace_courier/';
 
-// Modern theme
+// Modern tema
 const theme = createTheme({
   palette: {
     primary: { main: '#1976d2' },
@@ -98,7 +108,7 @@ const theme = createTheme({
   }
 });
 
-const AdminOrdersDashboard = () => {
+  const AdminOrdersDashboard = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
@@ -116,9 +126,56 @@ const AdminOrdersDashboard = () => {
   const [dialogError, setDialogError] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isInitialFetch, setIsInitialFetch] = useState(true);
+  const [editCourierDialogOpen, setEditCourierDialogOpen] = useState(false);
+  const [newCourierId, setNewCourierId] = useState('');
+  const [courierDialogError, setCourierDialogError] = useState('');
+  const [couriers, setCouriers] = useState([]);
+  const [isFetchingCouriers, setIsFetchingCouriers] = useState(false);
+  const [courierSuccess, setCourierSuccess] = useState('');
 
-  const notificationSound = new Audio('/sounds/notification.mp3');
+  // Ovoz faylini Audio ob'ekti sifatida yaratish
+  const notificationSound = new Audio(audio);
 
+  // Ovoz faylini oldindan yuklash
+  useEffect(() => {
+    notificationSound.load();
+    return () => {
+      notificationSound.pause();
+      notificationSound.currentTime = 0;
+    };
+  }, []);
+
+  // Kuryerlar ro‘yxatini olish
+  const fetchCouriers = async () => {
+    setIsFetchingCouriers(true);
+    setCourierDialogError('');
+    setCourierSuccess('');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Tizimga kirish talab qilinadi');
+      navigate('/login', { replace: true });
+      setIsFetchingCouriers(false);
+      return;
+    }
+
+    try {
+      const response = await axios.get(COURIERS_API, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const courierData = Array.isArray(response.data) ? response.data : [];
+      setCouriers(courierData);
+      setCourierSuccess('Kuryerlar ro‘yxati yangilandi');
+      setTimeout(() => setCourierSuccess(''), 3000);
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || 'Kuryerlar ro‘yxatini olishda xato';
+      setCourierDialogError(errorMessage);
+      console.error('Kuryerlarni olishda xato:', err);
+    } finally {
+      setIsFetchingCouriers(false);
+    }
+  };
+
+  // Buyurtmalarni olish
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
@@ -138,13 +195,22 @@ const AdminOrdersDashboard = () => {
       });
 
       const ordersData = Array.isArray(response.data) ? response.data : [];
+      console.log('Buyurtmalar:', ordersData);
       const newOrders = ordersData.filter(
-        newOrder => !orders.some(prevOrder => prevOrder.id === newOrder.id)
+        newOrder => !orders.some(prevOrder => prevOrder.id === newOrder.id) &&
+                    ['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(newOrder.status)
       );
+
       if (!isInitialFetch && newOrders.length > 0) {
         setNewOrdersCount(prev => prev + newOrders.length);
         if (soundEnabled) {
-          notificationSound.play().catch(err => console.error('Ovoz xatosi:', err));
+          try {
+            await notificationSound.play();
+            console.log(`Ovozli bildirishnoma: ${newOrders.length} yangi buyurtma`);
+          } catch (err) {
+            console.error('Ovoz xatosi:', err);
+            setError('Ovozli bildirishnoma ijro etilmadi');
+          }
         }
       }
 
@@ -158,8 +224,9 @@ const AdminOrdersDashboard = () => {
     }
   };
 
+  // Xato boshqaruvi
   const handleFetchError = (err) => {
-    let errorMessage = 'Buyurtmalarni olishda xato yuz berdi';
+    let errorMessage = 'Buyurtmalarni olishda xato';
     if (err.response) {
       if (err.response.status === 401) {
         errorMessage = 'Sessiya tugagan. Iltimos, qayta kiring';
@@ -168,6 +235,8 @@ const AdminOrdersDashboard = () => {
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userProfile');
         navigate('/login', { replace: true });
+      } else if (err.response.status === 500) {
+        errorMessage = 'Server xatosi. Keyinroq urinib ko‘ring';
       } else {
         errorMessage = err.response.data?.detail || err.response.data?.message || JSON.stringify(err.response.data) || errorMessage;
       }
@@ -177,6 +246,7 @@ const AdminOrdersDashboard = () => {
     setError(errorMessage);
   };
 
+  // Buyurtmani qabul qilish
   const handleAcceptOrder = async (orderId) => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -187,7 +257,7 @@ const AdminOrdersDashboard = () => {
 
     try {
       await axios.post(
-        `${ACCEPT_ORDER_API}${orderId}/accept/`,
+        `${ACCEPT_ORDER_API}${orderId}/`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -197,6 +267,42 @@ const AdminOrdersDashboard = () => {
     }
   };
 
+  // Buyurtmani qaytarish (kuryerni olib tashlash)
+  const handleRemoveCourier = async (orderId) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Tizimga kirish talab qilinadi');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    try {
+      await axios.post(
+        `${REMOVE_COURIER_API}${orderId}/`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCourierSuccess('Kuryer buyurtmadan olib tashlandi');
+      setTimeout(() => setCourierSuccess(''), 3000);
+      fetchOrders();
+    } catch (err) {
+      let errorMessage = 'Kuryerni olib tashlashda xato';
+      if (err.response) {
+        if (err.response.status === 404) {
+          errorMessage = 'Buyurtma topilmadi';
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data?.detail || 'Noto‘g‘ri so‘rov';
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server xatosi. Keyinroq urinib ko‘ring';
+        } else {
+          errorMessage = err.response.data?.detail || errorMessage;
+        }
+      }
+      setError(errorMessage);
+    }
+  };
+
+  // Oshxona vaqtini tahrirlash dialogini ochish
   const openEditDialog = (order) => {
     setCurrentOrder(order);
     if (order.kitchen_time) {
@@ -217,6 +323,7 @@ const AdminOrdersDashboard = () => {
     setEditDialogOpen(true);
   };
 
+  // Oshxona vaqtini yangilash
   const handleUpdateKitchenTime = async () => {
     if (!currentOrder) {
       setDialogError('Buyurtma tanlanmagan');
@@ -237,7 +344,7 @@ const AdminOrdersDashboard = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        setDialogError('Tizimga qayta kirish kerak');
+        setDialogError('Tizimga kirish kerak');
         navigate('/login', { replace: true });
         return;
       }
@@ -256,25 +363,111 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  const testSound = () => {
-    notificationSound.play().catch(err => console.error('Sinov ovozi xatosi:', err));
+  // Kuryer tahrirlash dialogini ochish
+  const openEditCourierDialog = (order) => {
+    setCurrentOrder(order);
+    setNewCourierId(order.courier?.id || '');
+    setCourierDialogError('');
+    setCourierSuccess('');
+    setEditCourierDialogOpen(true);
+    fetchCouriers();
   };
 
+  // Kuryerni yangilash (yangi endpointlar bilan)
+  const handleUpdateCourier = async () => {
+    if (!currentOrder) {
+      setCourierDialogError('Buyurtma tanlanmagan');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setCourierDialogError('Tizimga kirish kerak');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    try {
+      let endpoint;
+      let successMessage;
+
+      if (newCourierId) {
+        endpoint = currentOrder.courier
+          ? `${REPLACE_COURIER_API}${currentOrder.id}/`
+          : `${ASSIGN_COURIER_API}${currentOrder.id}/`;
+        successMessage = currentOrder.courier
+          ? 'Kuryer muvaffaqiyatli almashtirildi'
+          : 'Kuryer muvaffaqiyatli tayinlandi';
+
+        await axios.post(
+          endpoint,
+          { courier_id: parseInt(newCourierId) },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        endpoint = `${REMOVE_COURIER_API}${currentOrder.id}/`;
+        successMessage = 'Kuryer muvaffaqiyatli o‘chirildi';
+
+        await axios.post(
+          endpoint,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
+      setCourierSuccess(successMessage);
+      setTimeout(() => setCourierSuccess(''), 3000);
+      setEditCourierDialogOpen(false);
+      setNewCourierId('');
+      fetchOrders();
+    } catch (err) {
+      let errorMessage = 'Kuryerni yangilashda xato';
+      if (err.response) {
+        if (err.response.status === 404) {
+          errorMessage = 'Buyurtma yoki kuryer topilmadi';
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data?.detail || 'Noto‘g‘ri so‘rov';
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server xatosi. Keyinroq urinib ko‘ring';
+        } else {
+          errorMessage = err.response.data?.detail || errorMessage;
+        }
+      }
+      setCourierDialogError(errorMessage);
+      console.error('Kuryer yangilash xatosi:', err);
+    }
+  };
+
+  // Ovoz sinovi
+  const testSound = async () => {
+    try {
+      await notificationSound.play();
+      setCourierSuccess('Ovoz muvaffaqiyatli sinovdan o‘tdi');
+      setTimeout(() => setCourierSuccess(''), 3000);
+    } catch (err) {
+      console.error('Ovoz sinovi xatosi:', err);
+      setCourierDialogError('Ovoz sinovida xato yuz berdi');
+    }
+  };
+
+  // Boshlang‘ich yuklash va interval
   useEffect(() => {
     fetchOrders();
+    fetchCouriers();
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  // Holat chipini olish
   const getStatusChip = (status) => {
     const statusMap = {
       'buyurtma_tushdi': { label: 'Yangi', color: 'primary', icon: <AccessTime /> },
       'oshxona_vaqt_belgiladi': { label: 'Oshxona vaqt belgilaydi', color: 'info', icon: <Timer /> },
       'kuryer_oldi': { label: 'Kuryer oldi', color: 'secondary', icon: <CheckCircle /> },
       'kuryer_yolda': { label: 'Yetkazilmoqda', color: 'warning', icon: <LocalShipping /> },
-      'yetkazib_berildi': { label: 'Yetkazib berildi', color: 'success', icon: <CheckCircle /> }
+      'buyurtma_topshirildi': { label: 'Yetkazib berildi', color: 'success', icon: <CheckCircle /> }
     };
-    const config = statusMap[status] || { label: status, color: 'default', icon: null };
+    const config = statusMap[status] || { label: 'Noma‘lum', color: 'default', icon: null };
     return (
       <Chip
         label={config.label}
@@ -287,6 +480,7 @@ const AdminOrdersDashboard = () => {
     );
   };
 
+  // Vaqtni formatlash
   const formatTime = (kitchenTime) => {
     if (!kitchenTime) return 'Belgilanmagan';
     if (typeof kitchenTime === 'string' && kitchenTime.includes(':')) {
@@ -298,6 +492,7 @@ const AdminOrdersDashboard = () => {
     return `${hours > 0 ? `${hours} soat` : ''} ${mins > 0 ? `${mins} minut` : ''}`.trim();
   };
 
+  // Buyurtmalarni filtrlash
   const filteredOrders = orders.filter(order =>
     order.id.toString().includes(searchQuery) ||
     order.user?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -308,6 +503,7 @@ const AdminOrdersDashboard = () => {
   const inDeliveryOrders = filteredOrders.filter(o => o.status === 'kuryer_yolda');
   const completedOrders = filteredOrders.filter(o => o.status === 'buyurtma_topshirildi');
 
+  // Yuklanish holati
   if (loading && orders.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -316,6 +512,7 @@ const AdminOrdersDashboard = () => {
     );
   }
 
+  // Xato holati
   if (error) {
     return (
       <Alert severity="error" sx={{ m: 3, borderRadius: 2 }}>
@@ -328,7 +525,7 @@ const AdminOrdersDashboard = () => {
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ p: isMobile ? 2 : 4, bgcolor: 'background.default', minHeight: '100vh' }}>
-        {/* Header */}
+        {/* Sarlavha */}
         <Stack direction={isMobile ? 'column' : 'row'} justifyContent="space-between" alignItems="center" mb={4}>
           <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight="bold" color="primary.main">
             Buyurtmalar Boshqaruvi
@@ -341,7 +538,7 @@ const AdminOrdersDashboard = () => {
           <Stack direction={isMobile ? 'column' : 'row'} spacing={2} sx={{ mt: isMobile ? 2 : 0 }}>
             <TextField
               size="small"
-              placeholder="ID yoki mijoz bo'yicha qidirish"
+              placeholder="ID yoki mijoz bo‘yicha qidirish"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
@@ -369,7 +566,7 @@ const AdminOrdersDashboard = () => {
           </Stack>
         </Stack>
 
-        {/* Summary Cards */}
+        {/* Umumiy statistika */}
         <Grid container spacing={isMobile ? 2 : 3} mb={4}>
           {[
             { title: 'Jami Buyurtmalar', value: orders.length, color: 'text.primary' },
@@ -396,7 +593,7 @@ const AdminOrdersDashboard = () => {
           ))}
         </Grid>
 
-        {/* Tabs */}
+        {/* Tablar */}
         <Tabs
           value={activeTab}
           onChange={(e, newValue) => setActiveTab(newValue)}
@@ -406,12 +603,12 @@ const AdminOrdersDashboard = () => {
         >
           <Tab label={`Yangi (${newOrders.length})`} />
           <Tab label={`Kuryer oldi (${acceptedOrders.length})`} />
-          <Tab label={`Kuryer yolda  (${inDeliveryOrders.length})`} />
+          <Tab label={`Kuryer yolda (${inDeliveryOrders.length})`} />
           <Tab label={`Tugatildi (${completedOrders.length})`} />
           <Tab label={`Barchasi (${orders.length})`} />
         </Tabs>
 
-        {/* Orders List */}
+        {/* Buyurtmalar ro‘yxati */}
         <Box>
           {[
             newOrders,
@@ -440,7 +637,7 @@ const AdminOrdersDashboard = () => {
                       borderLeft: `4px solid ${
                         order.status === 'buyurtma_tushdi' || order.status === 'oshxona_vaqt_belgiladi'
                           ? theme.palette.primary.main
-                          : order.status === 'Kuryer_oldi'
+                          : order.status === 'kuryer_oldi'
                           ? theme.palette.secondary.main
                           : order.status === 'kuryer_yolda'
                           ? theme.palette.warning.main
@@ -470,7 +667,7 @@ const AdminOrdersDashboard = () => {
                         </Typography>
                       </Stack>
                       <Stack direction={isMobile ? 'column' : 'row'} spacing={1}>
-                        {['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(order.status) && (
+                        {['buyurtma_tushdi', 'oshxona_vaqt_belgiladi', 'kuryer_oldi'].includes(order.status) && (
                           <>
                             <Button
                               variant="contained"
@@ -481,8 +678,27 @@ const AdminOrdersDashboard = () => {
                             >
                               Vaqt belgilash
                             </Button>
-                         
+                            <Button
+                              variant="outlined"
+                              color="secondary"
+                              size="small"
+                              startIcon={<Person />}
+                              onClick={() => openEditCourierDialog(order)}
+                            >
+                              {order.courier ? 'Kuryer almashtirish' : 'Kuryer qo‘shish'}
+                            </Button>
                           </>
+                        )}
+                        {['kuryer_oldi', 'kuryer_yolda'].includes(order.status) && order.courier && (
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            startIcon={<Delete />}
+                            onClick={() => handleRemoveCourier(order.id)}
+                          >
+                            Kuryerni olib tashlash
+                          </Button>
                         )}
                       </Stack>
                       <Collapse in={expandedOrder === order.id}>
@@ -490,15 +706,14 @@ const AdminOrdersDashboard = () => {
                           <Divider sx={{ mb: 3 }} />
                           <Grid container spacing={isMobile ? 2 : 3}>
                             <Grid item xs={12} md={6}>
-                              <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+                              <Typography variant="subtitle نورث 1" fontWeight="bold" mb={2}>
                                 Buyurtma Tafsilotlari
                               </Typography>
                               <Stack spacing={2}>
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Phone fontSize="small" color="action" />
-                                  <Typography variant="body2">{order.contact_number}</Typography>
+                                  <Typography variant="body2">{order.contact_number || 'Mavjud emas'}</Typography>
                                 </Stack>
-                                
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Payment fontSize="small" color="action" />
                                   <Typography variant="body2">
@@ -511,14 +726,45 @@ const AdminOrdersDashboard = () => {
                                     <Typography variant="body2">Eslatmalar: {order.notes}</Typography>
                                   </Stack>
                                 )}
+                                {order.courier && (
+                                  <>
+                                    <Divider sx={{ my: 1 }} />
+                                    <Typography variant="subtitle2" fontWeight="bold">
+                                      Kuryer Ma‘lumotlari
+                                    </Typography>
+                                    <Stack spacing={1}>
+                                      <Stack direction="row" spacing={1} alignItems="center">
+                                        <Person fontSize="small" color="action" />
+                                        <Typography variant="body2">
+                                          Ism: {order.courier.user?.username || 'Noma‘lum'}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          Ism: {order.courier.user?.courier_salary || 'Noma‘lum'}
+                                        </Typography>
+                                      </Stack>
+                                      <Stack direction="row" spacing={1} alignItems="center">
+                                        <Phone fontSize="small" color="action" />
+                                        <Typography variant="body2">
+                                          Telefon: {order.courier.phone_number || 'Mavjud emas'}
+                                        </Typography>
+                                      </Stack>
+                                      <Stack direction="row" spacing={1} alignItems="center">
+                                        <Assignment fontSize="small" color="action" />
+                                        <Typography variant="body2">
+                                          Pasport: {order.courier.passport_series || ''} {order.courier.passport_number || ''}
+                                        </Typography>
+                                      </Stack>
+                                    </Stack>
+                                  </>
+                                )}
                               </Stack>
                             </Grid>
                             <Grid item xs={12} md={6}>
                               <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                                Mahsulotlar ({order.items.length})
+                                Mahsulotlar ({order.items?.length || 0})
                               </Typography>
                               <List dense>
-                                {order.items.map((item, index) => (
+                                {order.items?.map((item, index) => (
                                   <ListItem key={index} sx={{ py: 1 }}>
                                     <ListItemAvatar>
                                       <Avatar
@@ -530,14 +776,14 @@ const AdminOrdersDashboard = () => {
                                       </Avatar>
                                     </ListItemAvatar>
                                     <ListItemText
-                                      primary={item.product?.title || 'Noma’lum Mahsulot'}
+                                      primary={item.product?.title || 'Noma‘lum Mahsulot'}
                                       secondary={`${item.quantity} × ${item.price} so‘m`}
                                     />
                                     <Typography variant="body2" fontWeight="bold">
                                       {(item.quantity * parseFloat(item.price)).toLocaleString('uz-UZ')} so‘m
                                     </Typography>
                                   </ListItem>
-                                ))}
+                                )) || <Typography variant="body2">Mahsulotlar mavjud emas</Typography>}
                               </List>
                             </Grid>
                           </Grid>
@@ -551,7 +797,7 @@ const AdminOrdersDashboard = () => {
           )}
         </Box>
 
-        {/* Kitchen Time Dialog */}
+        {/* Oshxona vaqti dialogi */}
         <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
             Oshxona Vaqtini Belgilash
@@ -591,7 +837,65 @@ const AdminOrdersDashboard = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Last Fetch Time */}
+        {/* Kuryer qo‘shish/almashtirish dialogi */}
+        <Dialog open={editCourierDialogOpen} onClose={() => setEditCourierDialogOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white' }}>
+            {currentOrder?.courier ? 'Kuryer Almashtirish' : 'Kuryer Qo‘shish'}
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Stack spacing={3}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  select
+                  label="Online Kuryer"
+                  fullWidth
+                  value={newCourierId}
+                  onChange={(e) => setNewCourierId(e.target.value)}
+                  helperText="Online kuryerni tanlang yoki o‘chirish uchun bo‘sh qoldiring"
+                  disabled={isFetchingCouriers}
+                >
+                  <MenuItem value="">Kuryerni o‘chirish</MenuItem>
+                  {couriers
+                    .filter(courier => courier.is_active)
+                    .map(courier => (
+                      <MenuItem key={courier.id} value={courier.id}>
+                        {courier.user.username} (ID: {courier.id}, Tel: {courier.phone_number || 'N/A'})
+                      </MenuItem>
+                    ))}
+                </TextField>
+                <Button
+                  variant="outlined"
+                  startIcon={isFetchingCouriers ? <CircularProgress size={20} /> : <Refresh />}
+                  onClick={fetchCouriers}
+                  disabled={isFetchingCouriers}
+                >
+                  Yangilash
+                </Button>
+              </Stack>
+              {courierSuccess && <Alert severity="success">{courierSuccess}</Alert>}
+              {courierDialogError && <Alert severity="error">{courierDialogError}</Alert>}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditCourierDialogOpen(false)}>Bekor qilish</Button>
+            <Button
+              variant="contained"
+              onClick={handleUpdateCourier}
+              disabled={isFetchingCouriers}
+            >
+              Saqlash
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Global muvaffaqiyat xabari */}
+        {courierSuccess && !editCourierDialogOpen && (
+          <Alert severity="success" sx={{ m: 2 }}>
+            {courierSuccess}
+          </Alert>
+        )}
+
+        {/* Oxirgi yangilanish vaqti */}
         {lastFetch && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block', textAlign: 'center' }}>
             Oxirgi yangilanish: {new Date(lastFetch).toLocaleString('uz-UZ')}
