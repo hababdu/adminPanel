@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from "https://axios-http.com/axios/axios";
 import {
   Box,
   Container,
-  Grid,
   Card,
   CardContent,
   CardMedia,
   Typography,
   Chip,
+  Grid,
   CircularProgress,
   Alert,
   Button,
@@ -17,12 +17,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Typography,
   TextField,
   MenuItem,
   Snackbar,
   useMediaQuery,
-  useTheme
-} from '@mui/material';
+  useTheme,
+  InputAdornment,
+} from "@mui/material";
 import {
   Fastfood as FastfoodIcon,
   LocalDining as KitchenIcon,
@@ -35,19 +37,22 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 
 const ProductsList = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
-  
+
   const [products, setProducts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialog] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -65,6 +70,12 @@ const ProductsList = () => {
       'Content-Type': 'application/json',
     },
   });
+
+  // Filter products based on search query
+  const filteredProducts = products.filter((product) =>
+    product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   // Mahsulotlarni yuklash
   const fetchProducts = async () => {
@@ -98,6 +109,11 @@ const ProductsList = () => {
     if (isMobile) return 12;
     if (isTablet) return 6;
     return 4; // Default to 3 columns (12/4) for larger screens
+  };
+
+  // Clear search input
+  const handleClearSearch = () => {
+    setSearchQuery('');
   };
 
   // Mahsulotni tahrirlash
@@ -271,230 +287,292 @@ const ProductsList = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
         <Typography variant="h4" component="h1" fontWeight="bold" color="primary">
           Barcha mahsulotlar
         </Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() =>
-              setEditingProduct({
-                title: '',
-                description: '',
-                price: '',
-                discount: '',
-                unit: 'gram',
-                kitchen_id: 1,
-                category_id: 1,
-                subcategory_id: 1,
-              })
-            }
-            sx={{ whiteSpace: 'nowrap' }}
-          >
-            Yangi mahsulot
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<RefreshIcon />}
-            onClick={fetchProducts}
-            disabled={loading}
-          >
-            Yangilash
-          </Button>
+        <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+          <TextField
+            placeholder="Mahsulotlarni qidirish..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
+            sx={{
+              width: isMobile ? '100%' : 300,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 8,
+                backgroundColor: 'background.paper',
+                boxShadow: theme.shadows[1],
+              },
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="Qidiruvni tozalash"
+                    onClick={handleClearSearch}
+                    size="small"
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            aria-label="Mahsulotlarni qidirish"
+          />
+          <Box display="flex" gap={2}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() =>
+                setEditingProduct({
+                  title: '',
+                  description: '',
+                  price: '',
+                  discount: '',
+                  unit: 'gram',
+                  kitchen_id: 1,
+                  category_id: 1,
+                  subcategory_id: 1,
+                })
+              }
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              Yangi mahsulot
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<RefreshIcon />}
+              onClick={fetchProducts}
+              disabled={loading}
+            >
+              Yangilash
+            </Button>
+          </Box>
         </Box>
       </Box>
 
-      {(!Array.isArray(products) || products.length === 0) ? (
+      {(!Array.isArray(filteredProducts) || filteredProducts.length === 0) ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-          <Alert severity="info" action={
-            <Button color="info" size="small" onClick={() => setEditingProduct({
-              title: '',
-              description: '',
-              price: '',
-              discount: '',
-              unit: 'gram',
-              kitchen_id: 1,
-              category_id: 1,
-              subcategory_id: 1,
-            })}>
-              Yangi mahsulot qo'shish
-            </Button>
-          }>
-            Mahsulotlar topilmadi. Birinchi mahsulotni qo'shing.
+          <Alert
+            severity="info"
+            action={
+              searchQuery ? (
+                <Button color="info" size="small" onClick={handleClearSearch}>
+                  Qidiruvni tozalash
+                </Button>
+              ) : (
+                <Button
+                  color="info"
+                  size="small"
+                  onClick={() =>
+                    setEditingProduct({
+                      title: '',
+                      description: '',
+                      price: '',
+                      discount: '',
+                      unit: 'gram',
+                      kitchen_id: 1,
+                      category_id: 1,
+                      subcategory_id: 1,
+                    })
+                  }
+                >
+                  Yangi mahsulot qo'shish
+                </Button>
+              )
+            }
+          >
+            {searchQuery
+              ? 'Qidiruvga mos mahsulotlar topilmadi.'
+              : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo\'shing.'}
           </Alert>
         </Box>
       ) : (
-        <Grid container 
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 2,
-          minHeight: '200px',
-          width: '100%',
-          padding: 2,
-          backgroundColor: theme.palette.background.default,
-        }} spacing={3}>
-        {products.map((product) => (
-          <Grid item sx={{
-            width: '30%'
-          }} key={product.id}>
-            <Card sx={{
-              margin: '0 auto',
-              borderRadius: 2,
-              boxShadow: theme.shadows[2],
-              border: '1px solid ' + theme.palette.divider,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[6],
-              },
-              position: 'relative',
-              border: !product.id ? '2px dashed ' + theme.palette.primary.main : 'none',
-              backgroundColor: !product.id ? theme.palette.primary.light + '22' : 'background.paper'
-            }}>
-              <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
-                <IconButton
-                  color="primary"
-                  onClick={() => handleEdit(product)}
-                  sx={{ 
-                    backgroundColor: 'background.paper', 
-                    mr: 1,
-                    '&:hover': { backgroundColor: theme.palette.primary.light }
-                  }}
-                >
-                  <EditIcon />
-                </IconButton>
-                <IconButton
-                  color="error"
-                  onClick={() => {
-                    setProductToDelete(product);
-                    setDeleteDialogOpen(true);
-                  }}
-                  sx={{ 
-                    backgroundColor: 'background.paper',
-                    '&:hover': { backgroundColor: theme.palette.error.light }
-                  }}
-                >
-                  <DeleteIcon />
-                </IconButton>
-              </Box>
-      
-              {product.photo ? (
-                <CardMedia
-                  component="img"
-                  height="160"  
-                  image={`https://hosilbek.pythonanywhere.com${product.photo}`}
-                  alt={product.title}
-                  sx={{ 
-                    objectFit: 'cover',
-                    aspectRatio: '4/3' 
-                  }}
-                />
-              ) : (
-                <Box
-                  height="160"  
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  bgcolor="action.hover"
-                  sx={{ aspectRatio: '4/3' }}  
-                >
-                  <FastfoodIcon fontSize="large" color="disabled" />
+        <Grid
+          container
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 2,
+            minHeight: '200px',
+            width: '100%',
+            padding: 2,
+            backgroundColor: theme.palette.background.default,
+          }}
+          spacing={3}
+        >
+          {filteredProducts.map((product) => (
+            <Grid item xs={getGridColumns()} key={product.id}>
+              <Card
+                sx={{
+                  margin: '0 auto',
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[2],
+                  border: '1px solid ' + theme.palette.divider,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: theme.shadows[6],
+                  },
+                  position: 'relative',
+                  border: !product.id ? '2px dashed ' + theme.palette.primary.main : 'none',
+                  backgroundColor: !product.id
+                    ? theme.palette.primary.light + '22'
+                    : 'background.paper',
+                }}
+              >
+                <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleEdit(product)}
+                    sx={{
+                      backgroundColor: 'background.paper',
+                      mr: 1,
+                      '&:hover': { backgroundColor: theme.palette.primary.light },
+                    }}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    color="error"
+                    onClick={() => {
+                      setProductToDelete(product);
+                      setDeleteDialogOpen(true);
+                    }}
+                    sx={{
+                      backgroundColor: 'background.paper',
+                      '&:hover': { backgroundColor: theme.palette.error.light },
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
                 </Box>
-              )}
-      
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                  <Typography gutterBottom variant="h6" component="h2" noWrap>
-                    {product.title || 'Yangi mahsulot'}
-                  </Typography>
-                  <Chip 
-                    label={product.unit} 
-                    size="small" 
-                    color={!product.id ? 'primary' : 'secondary'}
-                    variant={!product.id ? 'outlined' : 'filled'}
+
+                {product.photo ? (
+                  <CardMedia
+                    component="img"
+                    height="160"
+                    image={`https://hosilbek.pythonanywhere.com${product.photo}`}
+                    alt={product.title}
+                    sx={{
+                      objectFit: 'cover',
+                      aspectRatio: '4/3',
+                    }}
                   />
-                </Box>
-      
-                <Typography variant="body2" color="text.secondary" mb={2} sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  minHeight: '4.5em'
-                }}>
-                  {product.description || 'Tavsif mavjud emas'}
-                </Typography>
-      
-                <Box mb={1} display="flex" flexWrap="wrap" gap={1}>
-                  <Chip
-                    icon={<KitchenIcon fontSize="small" />}
-                    label={product.kitchen?.name || 'Noma\'lum'}
-                    size="small"
-                    variant="outlined"
-                  />
-                  <Chip
-                    icon={<CategoryIcon fontSize="small" />}
-                    label={product.category?.name || 'Noma\'lum'}
-                    size="small"
-                    variant="outlined"
-                  />
-                  {product.subcategory && (
+                ) : (
+                  <Box
+                    height="160"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    bgcolor="action.hover"
+                    sx={{ aspectRatio: '4/3' }}
+                  >
+                    <FastfoodIcon fontSize="large" color="disabled" />
+                  </Box>
+                )}
+
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Typography gutterBottom variant="h6" component="h2" noWrap>
+                      {product.title || 'Yangi mahsulot'}
+                    </Typography>
                     <Chip
-                      label={product.subcategory.name}
+                      label={product.unit}
+                      size="small"
+                      color={!product.id ? 'primary' : 'secondary'}
+                      variant={!product.id ? 'outlined' : 'filled'}
+                    />
+                  </Box>
+
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    mb={2}
+                    sx={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      minHeight: '4.5em',
+                    }}
+                  >
+                    {product.description || 'Tavsif mavjud emas'}
+                  </Typography>
+
+                  <Box mb={1} display="flex" flexWrap="wrap" gap={1}>
+                    <Chip
+                      icon={<KitchenIcon fontSize="small" />}
+                      label={product.kitchen?.name || 'Noma\'lum'}
                       size="small"
                       variant="outlined"
                     />
-                  )}
-                </Box>
-      
-                <Box mb={1}>
-                  <Box display="flex" alignItems="center" mb={0.5}>
-                    <PriceIcon color="primary" fontSize="small" sx={{ mr: 1 }} />
-                    <Typography variant="body1" sx={{ mr: 2, fontWeight: 'bold' }}>
-                      {parseFloat(product.price).toLocaleString()} so'm
-                    </Typography>
+                    <Chip
+                      icon={<CategoryIcon fontSize="small" />}
+                      label={product.category?.name || 'Noma\'lum'}
+                      size="small"
+                      variant="outlined"
+                    />
+                    {product.subcategory && (
+                      <Chip
+                        label={product.subcategory.name}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
-      
-                  {parseFloat(product.discount) > 0 && (
-                    <Box display="flex" alignItems="center">
-                      <DiscountIcon color="error" fontSize="small" sx={{ mr: 1 }} />
-                      <Typography variant="body1" color="error" sx={{ textDecoration: 'line-through' }}>
-                        {parseFloat(product.discount).toLocaleString()} so'm
+
+                  <Box mb={1}>
+                    <Box display="flex" alignItems="center" mb={0.5}>
+                      <PriceIcon color="primary" fontSize="small" sx={{ mr: 1 }} />
+                      <Typography variant="body1" sx={{ mr: 2, fontWeight: 'bold' }}>
+                        {parseFloat(product.price).toLocaleString()} so'm
                       </Typography>
                     </Box>
+
+                    {parseFloat(product.discount) > 0 && (
+                      <Box display="flex" alignItems="center">
+                        <DiscountIcon color="error" fontSize="small" sx={{ mr: 1 }} />
+                        <Typography variant="body1" color="error" sx={{ textDecoration: 'line-through' }}>
+                          {parseFloat(product.discount).toLocaleString()} so'm
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {product.discounted_price && (
+                    <Typography variant="subtitle2" color="primary" mb={1} sx={{ fontWeight: 'bold' }}>
+                      Chegirmadagi narx: {parseFloat(product.discounted_price).toLocaleString()} so'm
+                    </Typography>
                   )}
-                </Box>
-      
-                {product.discounted_price && (
-                  <Typography variant="subtitle2" color="primary" mb={1} sx={{ fontWeight: 'bold' }}>
-                    Chegirmadagi narx: {parseFloat(product.discounted_price).toLocaleString()} so'm
-                  </Typography>
-                )}
-      
-                {renderRating(product.rating || 0)}
-      
-                <Box mt={2} display="flex" justifyContent="space-between">
-                  <Typography variant="caption" color="text.secondary">
-                    {product.created_at ? new Date(product.created_at).toLocaleDateString() : 'Yangi'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    ID: {product.id || '—'}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+
+                  {renderRating(product.rating || 0)}
+
+                  <Box mt={2} display="flex" justifyContent="space-between">
+                    <Typography variant="caption" color="text.secondary">
+                      {product.created_at ? new Date(product.created_at).toLocaleDateString() : 'Yangi'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      ID: {product.id || '—'}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       )}
 
       {/* Edit Dialog */}
@@ -622,9 +700,9 @@ const ProductsList = () => {
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={handleCloseSnackbar} 
-          severity={snackbarSeverity} 
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbarSeverity}
           sx={{ width: '100%' }}
           variant="filled"
         >
