@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import axios from "https://axios-http.com/axios/axios";
+import axios from 'axios';
 import {
   Box,
   Container,
+  Grid,
   Card,
   CardContent,
   CardMedia,
   Typography,
   Chip,
-  Grid,
   CircularProgress,
   Alert,
   Button,
@@ -17,14 +17,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Typography,
   TextField,
   MenuItem,
   Snackbar,
   useMediaQuery,
   useTheme,
   InputAdornment,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Fastfood as FastfoodIcon,
   LocalDining as KitchenIcon,
@@ -38,8 +37,7 @@ import {
   Delete as DeleteIcon,
   Save as SaveIcon,
   Add as AddIcon,
-  Search as SearchIcon,
-  Close as CloseIcon,
+  Search as SearchIcon, // Added SearchIcon for the search bar
 } from '@mui/icons-material';
 
 const ProductsList = () => {
@@ -48,11 +46,12 @@ const ProductsList = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const [products, setProducts] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredProducts, setFilteredProducts] = useState([]); // New state for filtered products
+  const [searchQuery, setSearchQuery] = useState(''); // New state for search query
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [deleteDialogOpen, setDeleteDialog] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -66,18 +65,12 @@ const ProductsList = () => {
   const axiosInstance = axios.create({
     baseURL: API_URL,
     headers: {
-      'Authorization': token ? `Bearer ${token}` : '',
+      Authorization: token ? `Bearer ${token}` : '',
       'Content-Type': 'application/json',
     },
   });
 
-  // Filter products based on search query
-  const filteredProducts = products.filter((product) =>
-    product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  // Mahsulotlarni yuklash
+  // Fetch products
   const fetchProducts = async () => {
     if (!token) {
       setError('Foydalanuvchi tizimga kirmagan');
@@ -89,15 +82,33 @@ const ProductsList = () => {
       setLoading(true);
       setError(null);
       const response = await axiosInstance.get('');
-      setProducts(Array.isArray(response.data) ? response.data : []);
+      const fetchedProducts = Array.isArray(response.data) ? response.data : [];
+      setProducts(fetchedProducts);
+      setFilteredProducts(fetchedProducts); // Initialize filteredProducts with all products
     } catch (err) {
       const errorMessage =
         err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi';
       setError(errorMessage);
       setProducts([]);
+      setFilteredProducts([]); // Clear filtered products on error
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle search query changes
+  const handleSearch = (event) => {
+    const query = event.target.value.toLowerCase();
+    setSearchQuery(query);
+
+    const filtered = products.filter((product) =>
+      product.title?.toLowerCase().includes(query) ||
+      product.description?.toLowerCase().includes(query) ||
+      product.kitchen?.name?.toLowerCase().includes(query) ||
+      product.category?.name?.toLowerCase().includes(query) ||
+      product.subcategory?.name?.toLowerCase().includes(query)
+    );
+    setFilteredProducts(filtered);
   };
 
   useEffect(() => {
@@ -111,12 +122,7 @@ const ProductsList = () => {
     return 4; // Default to 3 columns (12/4) for larger screens
   };
 
-  // Clear search input
-  const handleClearSearch = () => {
-    setSearchQuery('');
-  };
-
-  // Mahsulotni tahrirlash
+  // Edit product
   const handleEdit = (product) => {
     setEditingProduct({
       ...product,
@@ -126,7 +132,7 @@ const ProductsList = () => {
     });
   };
 
-  // Tahrirlashni saqlash
+  // Save edit
   const handleSaveEdit = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
@@ -174,7 +180,7 @@ const ProductsList = () => {
     }
   };
 
-  // Mahsulotni o'chirish
+  // Delete product
   const handleDelete = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
@@ -219,7 +225,7 @@ const ProductsList = () => {
     }
   };
 
-  // Baholarni ko'rsatish
+  // Render rating
   const renderRating = (rating) => {
     const stars = [];
     const maxStars = 5;
@@ -245,7 +251,7 @@ const ProductsList = () => {
     );
   };
 
-  // Snackbar yopish
+  // Close snackbar
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
   };
@@ -287,75 +293,54 @@ const ProductsList = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" component="h1" fontWeight="bold" color="primary">
           Barcha mahsulotlar
         </Typography>
-        <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+        <Box display="flex" gap={2} alignItems="center">
           <TextField
-            placeholder="Mahsulotlarni qidirish..."
+            label="Mahsulotlarni qidirish"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearch}
             size="small"
-            sx={{
-              width: isMobile ? '100%' : 300,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 8,
-                backgroundColor: 'background.paper',
-                boxShadow: theme.shadows[1],
-              },
-            }}
+            sx={{ minWidth: { xs: 150, sm: 250 } }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color="action" />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery && (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="Qidiruvni tozalash"
-                    onClick={handleClearSearch}
-                    size="small"
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
+                  <SearchIcon />
                 </InputAdornment>
               ),
             }}
-            aria-label="Mahsulotlarni qidirish"
           />
-          <Box display="flex" gap={2}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() =>
-                setEditingProduct({
-                  title: '',
-                  description: '',
-                  price: '',
-                  discount: '',
-                  unit: 'gram',
-                  kitchen_id: 1,
-                  category_id: 1,
-                  subcategory_id: 1,
-                })
-              }
-              sx={{ whiteSpace: 'nowrap' }}
-            >
-              Yangi mahsulot
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<RefreshIcon />}
-              onClick={fetchProducts}
-              disabled={loading}
-            >
-              Yangilash
-            </Button>
-          </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() =>
+              setEditingProduct({
+                title: '',
+                description: '',
+                price: '',
+                discount: '',
+                unit: 'gram',
+                kitchen_id: 1,
+                category_id: 1,
+                subcategory_id: 1,
+              })
+            }
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            Yangi mahsulot
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<RefreshIcon />}
+            onClick={fetchProducts}
+            disabled={loading}
+          >
+            Yangilash
+          </Button>
         </Box>
       </Box>
 
@@ -364,11 +349,7 @@ const ProductsList = () => {
           <Alert
             severity="info"
             action={
-              searchQuery ? (
-                <Button color="info" size="small" onClick={handleClearSearch}>
-                  Qidiruvni tozalash
-                </Button>
-              ) : (
+              searchQuery ? null : (
                 <Button
                   color="info"
                   size="small"
@@ -390,9 +371,7 @@ const ProductsList = () => {
               )
             }
           >
-            {searchQuery
-              ? 'Qidiruvga mos mahsulotlar topilmadi.'
-              : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo\'shing.'}
+            {searchQuery ? 'Qidiruv bo‘yicha mahsulotlar topilmadi.' : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo‘shing.'}
           </Alert>
         </Box>
       ) : (
@@ -411,7 +390,7 @@ const ProductsList = () => {
           spacing={3}
         >
           {filteredProducts.map((product) => (
-            <Grid item xs={getGridColumns()} key={product.id}>
+            <Grid item sx={{ width: '30%' }} key={product.id}>
               <Card
                 sx={{
                   margin: '0 auto',
@@ -428,9 +407,7 @@ const ProductsList = () => {
                   },
                   position: 'relative',
                   border: !product.id ? '2px dashed ' + theme.palette.primary.main : 'none',
-                  backgroundColor: !product.id
-                    ? theme.palette.primary.light + '22'
-                    : 'background.paper',
+                  backgroundColor: !product.id ? theme.palette.primary.light + '22' : 'background.paper',
                 }}
               >
                 <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
@@ -466,10 +443,7 @@ const ProductsList = () => {
                     height="160"
                     image={`https://hosilbek.pythonanywhere.com${product.photo}`}
                     alt={product.title}
-                    sx={{
-                      objectFit: 'cover',
-                      aspectRatio: '4/3',
-                    }}
+                    sx={{ objectFit: 'cover', aspectRatio: '4/3' }}
                   />
                 ) : (
                   <Box
