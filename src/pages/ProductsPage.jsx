@@ -37,7 +37,7 @@ import {
   Delete as DeleteIcon,
   Save as SaveIcon,
   Add as AddIcon,
-  Search as SearchIcon, // Added SearchIcon for the search bar
+  Search as SearchIcon,
 } from '@mui/icons-material';
 
 const ProductsList = () => {
@@ -46,8 +46,8 @@ const ProductsList = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]); // New state for filtered products
-  const [searchQuery, setSearchQuery] = useState(''); // New state for search query
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -58,10 +58,8 @@ const ProductsList = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/products/';
 
-  // Get token from localStorage
   const token = localStorage.getItem('token');
 
-  // Axios instance with default headers
   const axiosInstance = axios.create({
     baseURL: API_URL,
     headers: {
@@ -70,7 +68,6 @@ const ProductsList = () => {
     },
   });
 
-  // Fetch products
   const fetchProducts = async () => {
     if (!token) {
       setError('Foydalanuvchi tizimga kirmagan');
@@ -84,29 +81,29 @@ const ProductsList = () => {
       const response = await axiosInstance.get('');
       const fetchedProducts = Array.isArray(response.data) ? response.data : [];
       setProducts(fetchedProducts);
-      setFilteredProducts(fetchedProducts); // Initialize filteredProducts with all products
+      setFilteredProducts(fetchedProducts);
     } catch (err) {
       const errorMessage =
         err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi';
       setError(errorMessage);
       setProducts([]);
-      setFilteredProducts([]); // Clear filtered products on error
+      setFilteredProducts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle search query changes
   const handleSearch = (event) => {
     const query = event.target.value.toLowerCase();
     setSearchQuery(query);
 
-    const filtered = products.filter((product) =>
-      product.title?.toLowerCase().includes(query) ||
-      product.description?.toLowerCase().includes(query) ||
-      product.kitchen?.name?.toLowerCase().includes(query) ||
-      product.category?.name?.toLowerCase().includes(query) ||
-      product.subcategory?.name?.toLowerCase().includes(query)
+    const filtered = products.filter(
+      (product) =>
+        product.title?.toLowerCase().includes(query) ||
+        product.description?.toLowerCase().includes(query) ||
+        product.kitchen?.name?.toLowerCase().includes(query) ||
+        product.category?.name?.toLowerCase().includes(query) ||
+        product.subcategory?.name?.toLowerCase().includes(query)
     );
     setFilteredProducts(filtered);
   };
@@ -115,24 +112,30 @@ const ProductsList = () => {
     fetchProducts();
   }, []);
 
-  // Determine grid columns based on screen size
   const getGridColumns = () => {
     if (isMobile) return 12;
     if (isTablet) return 6;
-    return 4; // Default to 3 columns (12/4) for larger screens
+    return 4;
   };
 
-  // Edit product
+  // Handle file change for photo upload
+  const handleFileChange = (e) => {
+    setEditingProduct({
+      ...editingProduct,
+      photo: e.target.files[0],
+    });
+  };
+
   const handleEdit = (product) => {
     setEditingProduct({
       ...product,
       kitchen_id: product.kitchen?.id || 1,
       category_id: product.category?.id || 1,
       subcategory_id: product.subcategory?.id || 1,
+      photo: null, // Reset photo for editing
     });
   };
 
-  // Save edit
   const handleSaveEdit = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
@@ -150,25 +153,37 @@ const ProductsList = () => {
       return;
     }
 
-    // Prepare payload
-    const payload = {
-      title: editingProduct.title,
-      description: editingProduct.description || '',
-      price: parseFloat(editingProduct.price),
-      discount: editingProduct.discount ? parseFloat(editingProduct.discount) : 0,
-      unit: editingProduct.unit,
-      kitchen_id: editingProduct.kitchen_id || 1,
-      category_id: editingProduct.category_id || 1,
-      subcategory_id: editingProduct.subcategory_id || 1,
-    };
+    // Prepare FormData for multipart/form-data request
+    const formData = new FormData();
+    formData.append('title', editingProduct.title);
+    formData.append('description', editingProduct.description || '');
+    formData.append('price', parseFloat(editingProduct.price));
+    formData.append('discount', editingProduct.discount ? parseFloat(editingProduct.discount) : 0);
+    formData.append('unit', editingProduct.unit);
+    formData.append('kitchen_id', editingProduct.kitchen_id || 1);
+    formData.append('category_id', editingProduct.category_id || 1);
+    formData.append('subcategory_id', editingProduct.subcategory_id || 1);
+
+    if (editingProduct.photo) {
+      formData.append('photo', editingProduct.photo);
+    }
+
+    // Debug FormData
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
 
     try {
       setLoading(true);
       if (editingProduct.id) {
-        await axiosInstance.put(`${editingProduct.id}/`, payload);
+        await axiosInstance.put(`${editingProduct.id}/`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         showSnackbar('Mahsulot muvaffaqiyatli tahrirlandi!', 'success');
       } else {
-        await axiosInstance.post('', payload);
+        await axiosInstance.post('', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         showSnackbar('Mahsulot muvaffaqiyatli qo‘shildi!', 'success');
       }
       await fetchProducts();
@@ -180,7 +195,6 @@ const ProductsList = () => {
     }
   };
 
-  // Delete product
   const handleDelete = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
@@ -201,14 +215,12 @@ const ProductsList = () => {
     }
   };
 
-  // Helper function to show snackbar
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
   };
 
-  // Handle API errors
   const handleApiError = (err) => {
     if (err.response?.status === 400) {
       const errorMessage =
@@ -225,11 +237,10 @@ const ProductsList = () => {
     }
   };
 
-  // Render rating
   const renderRating = (rating) => {
     const stars = [];
     const maxStars = 5;
-    const roundedRating = Math.round(rating * 2) / 2; // Round to nearest 0.5
+    const roundedRating = Math.round(rating * 2) / 2;
 
     for (let i = 1; i <= maxStars; i++) {
       if (i <= roundedRating) {
@@ -251,12 +262,10 @@ const ProductsList = () => {
     );
   };
 
-  // Close snackbar
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
   };
 
-  // Conditional rendering
   if (!token) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -326,6 +335,7 @@ const ProductsList = () => {
                 kitchen_id: 1,
                 category_id: 1,
                 subcategory_id: 1,
+                photo: null, // Initialize photo as null
               })
             }
             sx={{ whiteSpace: 'nowrap' }}
@@ -363,6 +373,7 @@ const ProductsList = () => {
                       kitchen_id: 1,
                       category_id: 1,
                       subcategory_id: 1,
+                      photo: null,
                     })
                   }
                 >
@@ -390,7 +401,7 @@ const ProductsList = () => {
           spacing={3}
         >
           {filteredProducts.map((product) => (
-            <Grid item sx={{ width: '30%' }} key={product.id}>
+            <Grid item xs={getGridColumns()} key={product.id}>
               <Card
                 sx={{
                   margin: '0 auto',
@@ -549,7 +560,7 @@ const ProductsList = () => {
         </Grid>
       )}
 
-      {/* Edit Dialog */}
+      {/* Edit/Add Dialog */}
       <Dialog open={!!editingProduct} onClose={() => setEditingProduct(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
           {editingProduct?.id ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo\'shish'}
@@ -620,6 +631,27 @@ const ProductsList = () => {
                   </MenuItem>
                 ))}
               </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <Button
+                variant="outlined"
+                component="label"
+                fullWidth
+                sx={{ mt: 1 }}
+              >
+                Rasm Yuklash
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+              </Button>
+              {editingProduct?.photo && (
+                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                  Tanlangan fayl: {editingProduct.photo.name}
+                </Typography>
+              )}
             </Grid>
           </Grid>
         </DialogContent>
