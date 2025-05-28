@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -37,7 +36,9 @@ import {
   ThemeProvider,
   createTheme,
   MenuItem,
-  Select
+  Select,
+  Checkbox,
+  FormControlLabel as FormControlLabelCheckbox
 } from '@mui/material';
 import {
   Refresh,
@@ -67,6 +68,7 @@ const ACCEPT_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
 const REMOVE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/remove_courier/';
 const ASSIGN_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/assign_courier/';
 const REPLACE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/replace_courier/';
+const DELETE_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
 
 // Modern tema
 const theme = createTheme({
@@ -108,7 +110,7 @@ const theme = createTheme({
   }
 });
 
-  const AdminOrdersDashboard = () => {
+const AdminOrdersDashboard = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
@@ -131,7 +133,10 @@ const theme = createTheme({
   const [courierDialogError, setCourierDialogError] = useState('');
   const [couriers, setCouriers] = useState([]);
   const [isFetchingCouriers, setIsFetchingCouriers] = useState(false);
-  const [courierSuccess, setCourierSuccess] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [ordersToDelete, setOrdersToDelete] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Ovoz faylini Audio ob'ekti sifatida yaratish
   const notificationSound = new Audio(audio);
@@ -149,7 +154,7 @@ const theme = createTheme({
   const fetchCouriers = async () => {
     setIsFetchingCouriers(true);
     setCourierDialogError('');
-    setCourierSuccess('');
+    setSuccessMessage('');
     const token = localStorage.getItem('token');
     if (!token) {
       setError('Tizimga kirish talab qilinadi');
@@ -164,8 +169,8 @@ const theme = createTheme({
       });
       const courierData = Array.isArray(response.data) ? response.data : [];
       setCouriers(courierData);
-      setCourierSuccess('Kuryerlar ro‘yxati yangilandi');
-      setTimeout(() => setCourierSuccess(''), 3000);
+      setSuccessMessage('Kuryerlar ro‘yxati yangilandi');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Kuryerlar ro‘yxatini olishda xato';
       setCourierDialogError(errorMessage);
@@ -179,6 +184,8 @@ const theme = createTheme({
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
+    setOrdersToDelete([]); // Clear selections on refresh
+    setSelectAll(false);
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -282,8 +289,8 @@ const theme = createTheme({
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setCourierSuccess('Kuryer buyurtmadan olib tashlandi');
-      setTimeout(() => setCourierSuccess(''), 3000);
+      setSuccessMessage('Kuryer buyurtmadan olib tashlandi');
+      setTimeout(() => setSuccessMessage(''), 3000);
       fetchOrders();
     } catch (err) {
       let errorMessage = 'Kuryerni olib tashlashda xato';
@@ -299,6 +306,59 @@ const theme = createTheme({
         }
       }
       setError(errorMessage);
+    }
+  };
+
+  // Buyurtmalarni backenddan o'chirish
+  const handleDeleteOrders = async () => {
+    if (ordersToDelete.length === 0) {
+      setError('O‘chirish uchun buyurtma tanlanmagan');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Tizimga kirish talab qilinadi');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    try {
+      // Parallel DELETE so'rovlarini jo'natish
+      await Promise.all(
+        ordersToDelete.map(orderId =>
+          axios.delete(`${DELETE_ORDER_API}${orderId}/`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        )
+      );
+      setSuccessMessage(`${ordersToDelete.length} ta buyurtma muvaffaqiyatli o‘chirildi`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setDeleteDialogOpen(false);
+      setOrdersToDelete([]);
+      setSelectAll(false);
+      fetchOrders();
+    } catch (err) {
+      let errorMessage = 'Buyurtmalarni o‘chirishda xato yuz berdi';
+      if (err.response) {
+        if (err.response.status === 404) {
+          errorMessage = 'Buyurtma topilmadi';
+        } else if (err.response.status === 403) {
+          errorMessage = 'Bu buyurtmani o‘chirishga ruxsat yo‘q';
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data?.detail || 'Noto‘g‘ri so‘rov';
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server xatosi. Iltimos, keyinroq urinib ko‘ring';
+        } else {
+          errorMessage = err.response.data?.detail || errorMessage;
+        }
+      } else if (err.request) {
+        errorMessage = 'Internet aloqasi yo‘q';
+      }
+      setError(errorMessage);
+      setDeleteDialogOpen(false);
+      setOrdersToDelete([]);
+      setSelectAll(false);
     }
   };
 
@@ -368,12 +428,63 @@ const theme = createTheme({
     setCurrentOrder(order);
     setNewCourierId(order.courier?.id || '');
     setCourierDialogError('');
-    setCourierSuccess('');
+    setSuccessMessage('');
     setEditCourierDialogOpen(true);
     fetchCouriers();
   };
 
-  // Kuryerni yangilash (yangi endpointlar bilan)
+  // O'chirish dialogini ochish
+  const openDeleteDialog = (orderIds = ordersToDelete) => {
+    if (orderIds.length === 0) {
+      setError('O‘chirish uchun buyurtma tanlang');
+      return;
+    }
+    setOrdersToDelete(orderIds);
+    setDeleteDialogOpen(true);
+    setError('');
+  };
+
+  // Buyurtma tanlash
+  const handleSelectOrder = (orderId) => {
+    setOrdersToDelete(prev =>
+      prev.includes(orderId)
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  // Barchasini tanlash
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setOrdersToDelete([]);
+      setSelectAll(false);
+    } else {
+      const tabOrders = [
+        newOrders,
+        acceptedOrders,
+        inDeliveryOrders,
+        completedOrders,
+        filteredOrders
+      ][activeTab];
+      const orderIds = tabOrders.map(order => order.id);
+      setOrdersToDelete(orderIds);
+      setSelectAll(true);
+    }
+  };
+
+  // Ovoz sinovi
+  const testSound = async () => {
+    try {
+      await notificationSound.play();
+      setSuccessMessage('Ovoz muvaffaqiyatli sinovdan o‘tdi');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error('Ovoz sinovi xatosi:', err);
+      setCourierDialogError('Ovoz sinovida xato yuz berdi');
+    }
+  };
+
+  // Kuryerni yangilash
   const handleUpdateCourier = async () => {
     if (!currentOrder) {
       setCourierDialogError('Buyurtma tanlanmagan');
@@ -415,8 +526,8 @@ const theme = createTheme({
         );
       }
 
-      setCourierSuccess(successMessage);
-      setTimeout(() => setCourierSuccess(''), 3000);
+      setSuccessMessage(successMessage);
+      setTimeout(() => setSuccessMessage(''), 3000);
       setEditCourierDialogOpen(false);
       setNewCourierId('');
       fetchOrders();
@@ -435,18 +546,6 @@ const theme = createTheme({
       }
       setCourierDialogError(errorMessage);
       console.error('Kuryer yangilash xatosi:', err);
-    }
-  };
-
-  // Ovoz sinovi
-  const testSound = async () => {
-    try {
-      await notificationSound.play();
-      setCourierSuccess('Ovoz muvaffaqiyatli sinovdan o‘tdi');
-      setTimeout(() => setCourierSuccess(''), 3000);
-    } catch (err) {
-      console.error('Ovoz sinovi xatosi:', err);
-      setCourierDialogError('Ovoz sinovida xato yuz berdi');
     }
   };
 
@@ -608,6 +707,35 @@ const theme = createTheme({
           <Tab label={`Barchasi (${orders.length})`} />
         </Tabs>
 
+        {/* Barchasini tanlash va ommaviy o'chirish */}
+        <Stack direction="row" spacing={2} alignItems="center" mb={2}>
+          <FormControlLabelCheckbox
+            control={
+              <Checkbox
+                checked={selectAll}
+                onChange={handleSelectAll}
+                indeterminate={ordersToDelete.length > 0 && ordersToDelete.length < [
+                  newOrders,
+                  acceptedOrders,
+                  inDeliveryOrders,
+                  completedOrders,
+                  filteredOrders
+                ][activeTab].length}
+              />
+            }
+            label="Barchasini tanlash"
+          />
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={<Delete />}
+            onClick={() => openDeleteDialog()}
+            disabled={ordersToDelete.length === 0}
+          >
+            Tanlanganlarni o‘chirish ({ordersToDelete.length})
+          </Button>
+        </Stack>
+
         {/* Buyurtmalar ro‘yxati */}
         <Box>
           {[
@@ -647,7 +775,13 @@ const theme = createTheme({
                   >
                     <CardContent sx={{ p: isMobile ? 2 : 3 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="h6" fontWeight="bold">#{order.id}</Typography>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Checkbox
+                            checked={ordersToDelete.includes(order.id)}
+                            onChange={() => handleSelectOrder(order.id)}
+                          />
+                          <Typography variant="h6" fontWeight="bold">#{order.id}</Typography>
+                        </Stack>
                         <Stack direction="row" spacing={1} alignItems="center">
                           {getStatusChip(order.status)}
                           <IconButton onClick={() => toggleOrderExpand(order.id)}>
@@ -700,13 +834,22 @@ const theme = createTheme({
                             Kuryerni olib tashlash
                           </Button>
                         )}
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          startIcon={<Delete />}
+                          onClick={() => openDeleteDialog([order.id])}
+                        >
+                          Buyurtmani o‘chirish
+                        </Button>
                       </Stack>
                       <Collapse in={expandedOrder === order.id}>
                         <Box sx={{ mt: 3 }}>
                           <Divider sx={{ mb: 3 }} />
                           <Grid container spacing={isMobile ? 2 : 3}>
                             <Grid item xs={12} md={6}>
-                              <Typography variant="subtitle نورث 1" fontWeight="bold" mb={2}>
+                              <Typography variant="subtitle1" fontWeight="bold" mb={2}>
                                 Buyurtma Tafsilotlari
                               </Typography>
                               <Stack spacing={2}>
@@ -739,7 +882,7 @@ const theme = createTheme({
                                           Ism: {order.courier.user?.username || 'Noma‘lum'}
                                         </Typography>
                                         <Typography variant="body2">
-                                          Ism: {order.courier.user?.courier_salary || 'Noma‘lum'}
+                                          Ish haqi: {order.courier.user?.courier_salary || 'Noma‘lum'}
                                         </Typography>
                                       </Stack>
                                       <Stack direction="row" spacing={1} alignItems="center">
@@ -872,7 +1015,7 @@ const theme = createTheme({
                   Yangilash
                 </Button>
               </Stack>
-              {courierSuccess && <Alert severity="success">{courierSuccess}</Alert>}
+              {successMessage && <Alert severity="success">{successMessage}</Alert>}
               {courierDialogError && <Alert severity="error">{courierDialogError}</Alert>}
             </Stack>
           </DialogContent>
@@ -888,10 +1031,37 @@ const theme = createTheme({
           </DialogActions>
         </Dialog>
 
+        {/* Buyurtma o'chirish dialogi */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ bgcolor: 'error.main', color: 'white' }}>
+            Buyurtmani O‘chirish
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Typography variant="body1">
+              {ordersToDelete.length === 1
+                ? `Buyurtma #${ordersToDelete[0]} ni o‘chirishni tasdiqlaysizmi?`
+                : `${ordersToDelete.length} ta buyurtmani o‘chirishni tasdiqlaysizmi? (#${ordersToDelete.join(', #')})`}
+              <br />
+              Bu amalni qaytarib bo‘lmaydi.
+            </Typography>
+            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>Bekor qilish</Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleDeleteOrders}
+            >
+              O‘chirish
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Global muvaffaqiyat xabari */}
-        {courierSuccess && !editCourierDialogOpen && (
+        {successMessage && !editCourierDialogOpen && (
           <Alert severity="success" sx={{ m: 2 }}>
-            {courierSuccess}
+            {successMessage}
           </Alert>
         )}
 
