@@ -1,172 +1,292 @@
-import React, { useState } from 'react';
-import { FiChevronDown, FiChevronUp, FiSearch, FiCopy, FiCheckCircle, FiPackage, FiGlobe, FiClock } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import {
+  Box,
+  Container,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Checkbox,
+  CircularProgress,
+  Alert,
+  Button,
+  TextField,
+  InputAdornment,
+  Typography,
+  Snackbar,
+} from '@mui/material';
+import { Search as SearchIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 
-function FaqPage() {
-  const [openIndex, setOpenIndex] = useState(null);
+const theme = createTheme({
+  palette: {
+    primary: { main: '#3366ff' },
+    secondary: { main: '#ff3d71' },
+    success: { main: '#00d68f' },
+    background: { default: '#f7f9fc' },
+  },
+  typography: {
+    fontFamily: '"Inter", sans-serif',
+    h4: { fontWeight: 700, fontSize: '1.75rem' },
+  },
+});
+
+const KitchensTable = () => {
+  const [kitchens, setKitchens] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/kitchens/';
+  const token = localStorage.getItem('token');
 
-  const faqCategories = [
-    { id: 'all', name: 'All', icon: <FiPackage /> },
-    { id: 'shipping', name: 'Shipping', icon: <FiGlobe /> },
-    { id: 'returns', name: 'Returns', icon: <FiClock /> },
-    { id: 'payments', name: 'Payments', icon: <FiCheckCircle /> }
-  ];
+  const axiosInstance = axios.create({
+    baseURL: API_URL,
+    headers: { Authorization: token ? `Bearer ${token}` : '', 'Content-Type': 'application/json' },
+  });
 
-  const faqs = [
-    {
-      question: 'What is your return policy?',
-      answer: 'You can return any item within 30 days of purchase for a full refund.',
-      category: 'returns',
-      tags: ['returns', 'policy']
+  const fetchKitchens = useCallback(async () => {
+    if (!token) {
+      setError('Foydalanuvchi tizimga kirmagan');
+      setLoading(false);
+      window.location.href = '/login';
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching kitchens with token:', token);
+      const { data } = await axiosInstance.get('');
+      setKitchens(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Fetch error:', err.response?.data || err.message);
+      setError(err.response?.data?.message || err.response?.data?.detail || 'Oshxonalarni yuklab bo‘lmadi');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const handleToggleActive = useCallback(
+    async (kitchenId, isActive) => {
+      if (!token) {
+        setSnackbar({
+          open: true,
+          message: 'Foydalanuvchi tizimga kirmagan. Iltimos, tizimga kiring.',
+          severity: 'error',
+        });
+        window.location.href = '/login';
+        return;
+      }
+      try {
+        setLoading(true);
+        const url = `${kitchenId}/`;
+        const payload = { is_aktiv: !isActive };
+
+        await axiosInstance.patch(url, payload);
+        setKitchens((prev) =>
+          prev.map((kitchen) =>
+            kitchen.id === kitchenId ? { ...kitchen, is_aktiv: !isActive } : kitchen
+          )
+        );
+        setSnackbar({
+          open: true,
+          message: `Oshxona ${!isActive ? 'faollashtirildi' : 'noaktiv qilindi'}!`,
+          severity: 'success',
+        });
+      } catch (err) {
+        console.error('PATCH error:', err);
+        console.error('Response data:', err.response?.data);
+        console.error('Response status:', err.response?.status);
+        if (err.code === 'ERR_INTERNET_DISCONNECTED') {
+          setSnackbar({
+            open: true,
+            message: 'Internet ulanishingiz yo‘q. Iltimos, tarmoqni tekshiring.',
+            severity: 'error',
+          });
+        } else if (err.response?.status === 401) {
+          setSnackbar({
+            open: true,
+            message: 'Autentifikatsiya xatosi: Iltimos, qayta tizimga kiring.',
+            severity: 'error',
+          });
+          window.location.href = '/login';
+        } else if (err.response?.status === 404) {
+          setSnackbar({
+            open: true,
+            message: 'Oshxona topilmadi. ID ni tekshiring.',
+            severity: 'error',
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: err.response?.data?.message || err.response?.data?.detail || 'Holatni o‘zgartirishda xatolik',
+            severity: 'error',
+          });
+        }
+      } finally {
+        setLoading(false);
+      }
     },
-    {
-      question: 'Do you offer international shipping?',
-      answer: 'Yes, we ship to most countries worldwide. Shipping fees may apply.',
-      category: 'shipping',
-      tags: ['shipping', 'international']
-    },
-    {
-      question: 'How can I track my order?',
-      answer: 'Once your order is shipped, you will receive a tracking number via email.',
-      category: 'shipping',
-      tags: ['tracking', 'orders']
-    },
-  ];
-
-  const toggleFaq = (index) => {
-    setOpenIndex(openIndex === index ? null : index);
-    setCopiedIndex(null);
-  };
-
-  const copyToClipboard = async (text, index) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  const filteredFaqs = faqs.filter(faq => 
-    (faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     faq.answer.toLowerCase().includes(searchQuery.toLowerCase())) &&
-    (activeCategory === 'all' || faq.category === activeCategory)
+    [token, axiosInstance]
   );
+
+  const filterKitchens = useCallback(() => {
+    if (!searchQuery) return kitchens;
+    return kitchens.filter((kitchen) =>
+      kitchen.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [kitchens, searchQuery]);
+
+  useEffect(() => {
+    fetchKitchens();
+  }, [fetchKitchens]);
+
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  if (!token) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <Alert
+          severity="warning"
+          action={
+            <Button color="inherit" size="small" onClick={() => (window.location.href = '/login')}>
+              Tizimga kirish
+            </Button>
+          }
+        >
+          Iltimos, tizimga kiring!
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (loading && !kitchens.length) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <CircularProgress />
+        <Typography ml={2}>Oshxonalar yuklanmoqda...</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={fetchKitchens}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Frequently Asked Questions
-          </h1>
-          <p className="text-xl text-gray-600">
-            Find answers to common questions about our services
-          </p>
-        </div>
+    <ThemeProvider theme={theme}>
+      <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+        <Box sx={{ bgcolor: 'primary.main', color: 'white', p: 2, display: 'flex', alignItems: 'center', gap: 2, boxShadow: 1 }}>
+          <Typography variant="h6" fontWeight="medium">
+            Oshxonalar Jadvali
+          </Typography>
+        </Box>
 
-        {/* Search and Filters */}
-        <div className="mb-8 space-y-4">
-          <div className="relative">
-            <FiSearch className="absolute left-3 top-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search questions..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
-          <div className="flex flex-wrap gap-2 justify-center">
-            {faqCategories.map(category => (
-              <button
-                key={category.id}
-                onClick={() => setActiveCategory(category.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                  activeCategory === category.id 
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                } transition-colors`}
-              >
-                {category.icon}
-                {category.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* FAQ List */}
-        <div className="space-y-4">
-          {filteredFaqs.length > 0 ? (
-            filteredFaqs.map((faq, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow"
-              >
-                <button
-                  onClick={() => toggleFaq(index)}
-                  className="w-full flex justify-between items-center p-6 focus:outline-none"
+        <Box sx={{ flex: 'auto', overflowY: 'auto', p: 2 }}>
+          <Container maxWidth="lg" disableGutters>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+                Oshxonalar
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <TextField
+                  label="Oshxonalarni qidirish"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: { xs: '150px', sm: '250px' } }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<RefreshIcon />}
+                  onClick={fetchKitchens}
+                  disabled={loading}
                 >
-                  <div className="text-left">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {faq.question}
-                    </h3>
-                    <div className="flex gap-2 mt-2">
-                      {faq.tags.map(tag => (
-                        <span 
-                          key={tag}
-                          className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-md"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <span className="text-gray-500 ml-4">
-                    {openIndex === index ? <FiChevronUp /> : <FiChevronDown />}
-                  </span>
-                </button>
-                
-                {openIndex === index && (
-                  <div className="p-6 pt-0 border-t border-gray-100">
-                    <div className="flex justify-between items-start">
-                      <p className="text-gray-600 text-base leading-relaxed">
-                        {faq.answer}
-                      </p>
-                      <button
-                        onClick={() => copyToClipboard(faq.answer, index)}
-                        className="text-gray-400 hover:text-blue-600 ml-4"
-                        title="Copy answer"
-                      >
-                        {copiedIndex === index ? <FiCheckCircle className="text-green-500" /> : <FiCopy />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 bg-white rounded-xl">
-              <p className="text-gray-500 text-lg">
-                No questions found matching your search
-              </p>
-            </div>
-          )}
-        </div>
+                  Yangilash
+                </Button>
+              </Box>
+            </Box>
 
-        {/* Back to Top */}
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="text-blue-600 hover:text-blue-800 flex items-center justify-center gap-2"
+            <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Nomi</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Faol</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filterKitchens().map((kitchen) => (
+                    <TableRow key={kitchen.id} hover>
+                      <TableCell>{kitchen.name || 'Noma\'lum'}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={kitchen.is_aktiv || false}
+                          onChange={() => handleToggleActive(kitchen.id, kitchen.is_aktiv)}
+                          color="primary"
+                          disabled={loading}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {filterKitchens().length === 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+                <Alert severity="info">
+                  {searchQuery ? 'Qidiruv bo‘yicha oshxonalar topilmadi.' : 'Oshxonalar topilmadi.'}
+                </Alert>
+              </Box>
+            )}
+          </Container>
+        </Box>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={handleCloseSnackbar}
+            severity={snackbar.severity}
+            variant="filled"
+            sx={{ width: '100%', borderRadius: 2 }}
           >
-            Back to Top
-            <FiChevronUp className="inline-block" />
-          </button>
-        </div>
-      </div>
-    </div>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </ThemeProvider>
   );
-}
+};
 
-export default FaqPage;
+export default KitchensTable;

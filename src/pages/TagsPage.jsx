@@ -12,8 +12,8 @@ const mapContainerStyle = {
 };
 
 const defaultCenter = {
-  lat: 41.2995, // Toshkent
-  lng: 69.2401
+  lat: 40.901058, // Toshkent
+  lng: 71.850070
 };
 
 const KitchenPanel = () => {
@@ -29,7 +29,7 @@ const KitchenPanel = () => {
   const [error, setError] = useState(null);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [markerPosition, setMarkerPosition] = useState(defaultCenter);
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('token');
 
   // Tokenni localStorage-dan olish
   const getToken = () => {

@@ -1,274 +1,247 @@
-import React, { useState } from 'react';
-import { FiSearch, FiArrowUp, FiArrowDown, FiStar, FiBarChart2, FiList } from 'react-icons/fi';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import {
+  Box,
+  Container,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Checkbox,
+  CircularProgress,
+  Alert,
+  Button,
+  TextField,
+  InputAdornment,
+  Typography,
+  Snackbar,
+} from '@mui/material';
+import { Search as SearchIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 
-function CouriersStatsPage() {
-  const [couriers, setCouriers] = useState([
-    { id: 1, name: 'John Doe', deliveries: 25, rating: 4.5, completed: 23, late: 2 },
-    { id: 2, name: 'Jane Smith', deliveries: 30, rating: 4.8, completed: 29, late: 1 },
-    { id: 3, name: 'Mike Johnson', deliveries: 20, rating: 4.2, completed: 18, late: 2 },
-  ]);
+const theme = createTheme({
+  palette: {
+    primary: { main: '#3366ff' },
+    secondary: { main: '#ff3d71' },
+    success: { main: '#00d68f' },
+    background: { default: '#f7f9fc' },
+  },
+  typography: {
+    fontFamily: '"Inter", sans-serif',
+    h4: { fontWeight: 700, fontSize: '1.75rem' },
+  },
+});
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'deliveries', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
-  const [viewMode, setViewMode] = useState('table');
-  const [chartType, setChartType] = useState('bar');
+const ProductsTable = () => {
+  const [products, setProducts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/products/';
+  const token = localStorage.getItem('token');
 
-  // Sorting functionality
-  const sortedCouriers = [...couriers].sort((a, b) => {
-    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
+  const axiosInstance = axios.create({
+    baseURL: API_URL,
+    headers: { Authorization: token ? `Bearer ${token}` : '', 'Content-Type': 'application/json' },
   });
 
-  // Search and filter
-  const filteredCouriers = sortedCouriers.filter(courier =>
-    courier.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const fetchProducts = useCallback(async () => {
+    if (!token) {
+      setError('Foydalanuvchi tizimga kirmagan');
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const { data } = await axiosInstance.get('');
+      setProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const handleToggleActive = useCallback(
+    async (productId, isActive) => {
+      if (!token) {
+        setSnackbar({ open: true, message: 'Foydalanuvchi tizimga kirmagan', severity: 'error' });
+        return;
+      }
+      try {
+        setLoading(true);
+        // PATCH so'rovi orqali is_aktiv holatini o'zgartirish
+        const response = await axiosInstance.patch(`${productId}/`, { is_aktiv: !isActive });
+        setProducts((prev) =>
+          prev.map((product) =>
+            product.id === productId ? { ...product, is_aktiv: !isActive } : product
+          )
+        );
+        setSnackbar({
+          open: true,
+          message: `Mahsulot ${!isActive ? 'faollashtirildi' : 'noaktiv qilindi'}!`,
+          severity: 'success',
+        });
+      } catch (err) {
+        console.error('Xato tafsilotlari:', err.response?.data); // Xato haqida batafsil ma'lumot
+        setSnackbar({
+          open: true,
+          message: err.response?.data?.message || err.response?.data?.detail || 'Holatni o‘zgartirishda xatolik',
+          severity: 'error',
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token, axiosInstance]
   );
 
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredCouriers.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredCouriers.length / itemsPerPage);
+  const filterProducts = useCallback(() => {
+    if (!searchQuery) return products;
+    return products.filter((product) =>
+      product.title?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
 
-  const handleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
-  const getStatusColor = (deliveries) => {
-    if (deliveries >= 30) return 'bg-green-100 text-green-800';
-    if (deliveries >= 20) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  }, []);
 
-  const totalDeliveries = couriers.reduce((sum, courier) => sum + courier.deliveries, 0);
-  const averageRating = (couriers.reduce((sum, courier) => sum + courier.rating, 0) / couriers.length).toFixed(1);
+  if (!token) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <Alert severity="warning">Iltimos, tizimga kiring!</Alert>
+      </Box>
+    );
+  }
+
+  if (loading && !products.length) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <CircularProgress />
+        <Typography ml={2}>Mahsulotlar yuklanmoqda...</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={fetchProducts}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Courier Performance Analytics</h1>
-            <div className="flex gap-4 mt-2">
-              <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                Total Couriers: {couriers.length}
-              </div>
-              <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                Total Deliveries: {totalDeliveries}
-              </div>
-              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
-                Avg Rating: {averageRating}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex gap-4 mt-4 md:mt-0">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search couriers..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <select
-              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value)}
-            >
-              <option value="table">Table View</option>
-              <option value="chart">Chart View</option>
-            </select>
-          </div>
-        </div>
+    <ThemeProvider theme={theme}>
+      <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+        <Box sx={{ bgcolor: 'primary.main', color: 'white', p: 2, display: 'flex', alignItems: 'center', gap: 2, boxShadow: 1 }}>
+          <Typography variant="h6" fontWeight="medium">
+            Mahsulotlar Jadvali
+          </Typography>
+        </Box>
 
-        {viewMode === 'table' ? (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th 
-                      className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase cursor-pointer"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center gap-1">
-                        Name
-                        {sortConfig.key === 'name' && (
-                          sortConfig.direction === 'asc' ? <FiArrowUp /> : <FiArrowDown />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase cursor-pointer"
-                      onClick={() => handleSort('deliveries')}
-                    >
-                      <div className="flex items-center gap-1">
-                        Deliveries
-                        {sortConfig.key === 'deliveries' && (
-                          sortConfig.direction === 'asc' ? <FiArrowUp /> : <FiArrowDown />
-                        )}
-                      </div>
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase">
-                      Success Rate
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase cursor-pointer"
-                      onClick={() => handleSort('rating')}
-                    >
-                      <div className="flex items-center gap-1">
-                        Rating
-                        {sortConfig.key === 'rating' && (
-                          sortConfig.direction === 'asc' ? <FiArrowUp /> : <FiArrowDown />
-                        )}
-                      </div>
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase">
-                      Performance
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {currentItems.map(courier => (
-                    <tr key={courier.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{courier.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{courier.deliveries}</span>
-                          <span className="text-gray-400">|</span>
-                          <span className="text-green-600">{courier.completed} completed</span>
-                          <span className="text-red-600">{courier.late} late</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${(courier.completed / courier.deliveries) * 100}%` }}
-                          ></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        <div className="flex items-center gap-1">
-                          <FiStar className="text-yellow-400" />
-                          {courier.rating}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(courier.deliveries)}`}>
-                          {courier.deliveries >= 30 ? 'Top Performer' : 
-                           courier.deliveries >= 20 ? 'On Track' : 'Needs Improvement'}
-                        </span>
-                      </td>
-                    </tr>
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+          <Container maxWidth="lg" disableGutters>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+                Mahsulotlar
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <TextField
+                  label="Mahsulotlarni qidirish"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: { xs: '150px', sm: '250px' } }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<RefreshIcon />}
+                  onClick={fetchProducts}
+                  disabled={loading}
+                >
+                  Yangilash
+                </Button>
+              </Box>
+            </Box>
+
+            <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Nomi</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Narx (so‘m)</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Faol</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filterProducts().map((product) => (
+                    <TableRow key={product.id} hover>
+                      <TableCell>{product.title || 'Noma\'lum'}</TableCell>
+                      <TableCell>{parseFloat(product.price || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={product.is_aktiv || false}
+                          onChange={() => handleToggleActive(product.id, product.is_aktiv)}
+                          color="primary"
+                          disabled={loading}
+                        />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
-                      <span className="font-medium">{Math.min(indexOfLastItem, filteredCouriers.length)}</span> of{' '}
-                      <span className="font-medium">{filteredCouriers.length}</span> results
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {Array.from({ length: totalPages }, (_, i) => (
-                      <button
-                        key={i + 1}
-                        onClick={() => setCurrentPage(i + 1)}
-                        className={`px-3 py-1 rounded-md ${
-                          currentPage === i + 1
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {filterProducts().length === 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+                <Alert severity="info">
+                  {searchQuery ? 'Qidiruv bo‘yicha mahsulotlar topilmadi.' : 'Mahsulotlar topilmadi.'}
+                </Alert>
+              </Box>
             )}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={() => setChartType('bar')}
-                className={`px-4 py-2 rounded-lg ${
-                  chartType === 'bar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <FiBarChart2 className="inline mr-2" />
-                Bar Chart
-              </button>
-              <button
-                onClick={() => setChartType('line')}
-                className={`px-4 py-2 rounded-lg ${
-                  chartType === 'line' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <FiList className="inline mr-2" />
-                Trend Line
-              </button>
-            </div>
+          </Container>
+        </Box>
 
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                {chartType === 'bar' ? (
-                  <BarChart data={couriers}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="deliveries" fill="#3B82F6" name="Total Deliveries" />
-                    <Bar dataKey="completed" fill="#10B981" name="Completed Deliveries" />
-                  </BarChart>
-                ) : (
-                  <LineChart data={couriers}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line 
-                      type="monotone" 
-                      dataKey="rating" 
-                      stroke="#F59E0B" 
-                      name="Rating"
-                      strokeWidth={2}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="deliveries" 
-                      stroke="#3B82F6" 
-                      name="Deliveries"
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled" sx={{ width: '100%', borderRadius: 2 }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </ThemeProvider>
   );
-}
+};
 
-export default CouriersStatsPage;
+export default ProductsTable;
