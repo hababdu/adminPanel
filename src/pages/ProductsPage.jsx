@@ -37,7 +37,8 @@ import {
   Delete as DeleteIcon,
   Save as SaveIcon,
   Add as AddIcon,
-  Search as SearchIcon, // Added SearchIcon for the search bar
+  Search as SearchIcon,
+  Image as ImageIcon,
 } from '@mui/icons-material';
 
 const ProductsList = () => {
@@ -46,22 +47,24 @@ const ProductsList = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]); // New state for filtered products
-  const [searchQuery, setSearchQuery] = useState(''); // New state for search query
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/products/';
 
-  // Get token from localStorage
   const token = localStorage.getItem('token');
 
-  // Axios instance with default headers
   const axiosInstance = axios.create({
     baseURL: API_URL,
     headers: {
@@ -70,44 +73,67 @@ const ProductsList = () => {
     },
   });
 
-  // Fetch products
   const fetchProducts = async () => {
     if (!token) {
       setError('Foydalanuvchi tizimga kirmagan');
       setLoading(false);
       return;
     }
-
     try {
       setLoading(true);
       setError(null);
       const response = await axiosInstance.get('');
       const fetchedProducts = Array.isArray(response.data) ? response.data : [];
       setProducts(fetchedProducts);
-      setFilteredProducts(fetchedProducts); // Initialize filteredProducts with all products
+      setFilteredProducts(fetchedProducts);
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi';
+      const errorMessage = err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi';
       setError(errorMessage);
       setProducts([]);
-      setFilteredProducts([]); // Clear filtered products on error
+      setFilteredProducts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle search query changes
   const handleSearch = (event) => {
     const query = event.target.value.toLowerCase();
     setSearchQuery(query);
+    filterProducts(query, selectedCategory, selectedSubcategory);
+  };
 
-    const filtered = products.filter((product) =>
-      product.title?.toLowerCase().includes(query) ||
-      product.description?.toLowerCase().includes(query) ||
-      product.kitchen?.name?.toLowerCase().includes(query) ||
-      product.category?.name?.toLowerCase().includes(query) ||
-      product.subcategory?.name?.toLowerCase().includes(query)
-    );
+  const handleCategoryClick = (categoryId) => {
+    setSelectedCategory(categoryId);
+    setSelectedSubcategory(null);
+    filterProducts(searchQuery, categoryId, null);
+  };
+
+  const handleSubcategoryClick = (subcategoryId) => {
+    setSelectedSubcategory(subcategoryId);
+    filterProducts(searchQuery, selectedCategory, subcategoryId);
+  };
+
+  const filterProducts = (query, categoryId, subcategoryId) => {
+    let filtered = products;
+
+    if (query) {
+      filtered = filtered.filter((product) =>
+        product.title?.toLowerCase().includes(query) ||
+        product.description?.toLowerCase().includes(query) ||
+        product.kitchen?.name?.toLowerCase().includes(query) ||
+        product.category?.name?.toLowerCase().includes(query) ||
+        product.subcategory?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    if (categoryId) {
+      filtered = filtered.filter((product) => product.category?.id === categoryId);
+    }
+
+    if (subcategoryId) {
+      filtered = filtered.filter((product) => product.subcategory?.id === subcategoryId);
+    }
+
     setFilteredProducts(filtered);
   };
 
@@ -115,14 +141,13 @@ const ProductsList = () => {
     fetchProducts();
   }, []);
 
-  // Determine grid columns based on screen size
-  const getGridColumns = () => {
-    if (isMobile) return 12;
-    if (isTablet) return 6;
-    return 4; // Default to 3 columns (12/4) for larger screens
-  };
+  const categories = [...new Map(products.map(p => [p.category?.id, p.category])).values()].filter(Boolean);
+  const subcategories = selectedCategory
+    ? [...new Map(products
+        .filter(p => p.category?.id === selectedCategory)
+        .map(p => [p.subcategory?.id, p.subcategory])).values()].filter(Boolean)
+    : [];
 
-  // Edit product
   const handleEdit = (product) => {
     setEditingProduct({
       ...product,
@@ -130,49 +155,62 @@ const ProductsList = () => {
       category_id: product.category?.id || 1,
       subcategory_id: product.subcategory?.id || 1,
     });
+    setImageFile(null);
+    setImagePreview(product.photo ? `https://hosilbek.pythonanywhere.com${product.photo}` : null);
   };
 
-  // Save edit
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
       return;
     }
-
-    // Validate required fields
     if (!editingProduct.title || !editingProduct.price || !editingProduct.unit) {
-      showSnackbar('Iltimos, barcha majburiy maydonlarni to‘ldiring (nomi, narx, birlik)', 'error');
+      showSnackbar('Iltimos, barcha majburiy maydonlarni to‘ldiring', 'error');
       return;
     }
-
     if (isNaN(editingProduct.price) || parseFloat(editingProduct.price) <= 0) {
       showSnackbar('Narx musbat son bo‘lishi kerak', 'error');
       return;
     }
 
-    // Prepare payload
-    const payload = {
-      title: editingProduct.title,
-      description: editingProduct.description || '',
-      price: parseFloat(editingProduct.price),
-      discount: editingProduct.discount ? parseFloat(editingProduct.discount) : 0,
-      unit: editingProduct.unit,
-      kitchen_id: editingProduct.kitchen_id || 1,
-      category_id: editingProduct.category_id || 1,
-      subcategory_id: editingProduct.subcategory_id || 1,
-    };
+    const formData = new FormData();
+    formData.append('title', editingProduct.title);
+    formData.append('description', editingProduct.description || '');
+    formData.append('price', parseFloat(editingProduct.price));
+    formData.append('discount', editingProduct.discount ? parseFloat(editingProduct.discount) : 0);
+    formData.append('unit', editingProduct.unit);
+    formData.append('kitchen_id', editingProduct.kitchen_id || 1);
+    formData.append('category_id', editingProduct.category_id || 1);
+    formData.append('subcategory_id', editingProduct.subcategory_id || 1);
+    if (imageFile) {
+      formData.append('photo', imageFile);
+    }
 
     try {
       setLoading(true);
       if (editingProduct.id) {
-        await axiosInstance.put(`${editingProduct.id}/`, payload);
+        await axiosInstance.put(`${editingProduct.id}/`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         showSnackbar('Mahsulot muvaffaqiyatli tahrirlandi!', 'success');
       } else {
-        await axiosInstance.post('', payload);
+        await axiosInstance.post('', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         showSnackbar('Mahsulot muvaffaqiyatli qo‘shildi!', 'success');
       }
       await fetchProducts();
       setEditingProduct(null);
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -180,13 +218,11 @@ const ProductsList = () => {
     }
   };
 
-  // Delete product
   const handleDelete = async () => {
     if (!token) {
       showSnackbar('Foydalanuvchi tizimga kirmagan', 'error');
       return;
     }
-
     try {
       setLoading(true);
       await axiosInstance.delete(`${productToDelete.id}/`);
@@ -201,22 +237,15 @@ const ProductsList = () => {
     }
   };
 
-  // Helper function to show snackbar
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
   };
 
-  // Handle API errors
   const handleApiError = (err) => {
     if (err.response?.status === 400) {
-      const errorMessage =
-        err.response?.data?.message ||
-        Object.values(err.response?.data || {})
-          .flat()
-          .join(', ') ||
-        'Ma\'lumotlar noto\'g\'ri';
+      const errorMessage = err.response?.data?.message || Object.values(err.response?.data || {}).flat().join(', ') || 'Ma\'lumotlar noto\'g\'ri';
       showSnackbar(`Xatolik: ${errorMessage}`, 'error');
     } else if (err.response?.status === 401) {
       showSnackbar('Tizimga qayta kirish kerak. Sessiya tugagan.', 'error');
@@ -225,12 +254,10 @@ const ProductsList = () => {
     }
   };
 
-  // Render rating
   const renderRating = (rating) => {
     const stars = [];
     const maxStars = 5;
-    const roundedRating = Math.round(rating * 2) / 2; // Round to nearest 0.5
-
+    const roundedRating = Math.round(rating * 2) / 2;
     for (let i = 1; i <= maxStars; i++) {
       if (i <= roundedRating) {
         stars.push(<StarIcon key={i} color="primary" fontSize="small" />);
@@ -240,7 +267,6 @@ const ProductsList = () => {
         stars.push(<StarEmptyIcon key={i} color="primary" fontSize="small" />);
       }
     }
-
     return (
       <Box display="flex" alignItems="center">
         {stars}
@@ -251,12 +277,16 @@ const ProductsList = () => {
     );
   };
 
-  // Close snackbar
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
   };
 
-  // Conditional rendering
+  const getGridColumns = () => {
+    if (isMobile) return 12; // 1 card per row on mobile
+    if (isTablet) return 6;  // 2 cards per row on tablet
+    return 4;               // 3 cards per row on desktop (md and larger)
+  };
+
   if (!token) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -277,14 +307,7 @@ const ProductsList = () => {
   if (error) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={fetchProducts}>
-              Qayta urinish
-            </Button>
-          }
-        >
+        <Alert severity="error" action={<Button color="inherit" size="small" onClick={fetchProducts}>Qayta urinish</Button>}>
           {error}
         </Alert>
       </Box>
@@ -292,18 +315,18 @@ const ProductsList = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" component="h1" fontWeight="bold" color="primary">
+    <Container  className="py-4">
+      <Box className="flex justify-between items-center mb-4">
+        <Typography variant="h4" component="h1" className="font-bold text-blue-600">
           Barcha mahsulotlar
         </Typography>
-        <Box display="flex" gap={2} alignItems="center">
+        <Box className="flex gap-2 items-center">
           <TextField
             label="Mahsulotlarni qidirish"
             value={searchQuery}
             onChange={handleSearch}
             size="small"
-            sx={{ minWidth: { xs: 150, sm: 250 } }}
+            className="min-w-[150px] sm:min-w-[250px]"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -328,7 +351,7 @@ const ProductsList = () => {
                 subcategory_id: 1,
               })
             }
-            sx={{ whiteSpace: 'nowrap' }}
+            className="whitespace-nowrap"
           >
             Yangi mahsulot
           </Button>
@@ -344,12 +367,76 @@ const ProductsList = () => {
         </Box>
       </Box>
 
+      {/* Category Slider */}
+      <Box className="mb-4">
+        <Typography variant="h6" className="mb-2 font-semibold">Kategoriyalar</Typography>
+        <Box className="overflow-x-auto whitespace-nowrap pb-2">
+          <ul className="flex gap-2">
+            <li>
+              <Button
+                variant={selectedCategory === null ? "contained" : "outlined"}
+                color="primary"
+                onClick={() => handleCategoryClick(null)}
+                className="min-w-[100px]"
+              >
+                Hammasi
+              </Button>
+            </li>
+            {categories.map((category) => (
+              <li key={category.id}>
+                <Button
+                  variant={selectedCategory === category.id ? "contained" : "outlined"}
+                  color="primary"
+                  onClick={() => handleCategoryClick(category.id)}
+                  className="min-w-[100px]"
+                >
+                  {category.name}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Box>
+      </Box>
+
+      {/* Subcategory Slider */}
+      {selectedCategory && subcategories.length > 0 && (
+        <Box className="mb-4">
+          <Typography variant="h6" className="mb-2 font-semibold">Subkategoriyalar</Typography>
+          <Box className="overflow-x-auto whitespace-nowrap pb-2">
+            <ul className="flex gap-2">
+              <li>
+                <Button
+                  variant={selectedSubcategory === null ? "contained" : "outlined"}
+                  color="secondary"
+                  onClick={() => handleSubcategoryClick(null)}
+                  className="min-w-[100px]"
+                >
+                  Hammasi
+                </Button>
+              </li>
+              {subcategories.map((subcategory) => (
+                <li key={subcategory.id}>
+                  <Button
+                    variant={selectedSubcategory === subcategory.id ? "contained" : "outlined"}
+                    color="secondary"
+                    onClick={() => handleSubcategoryClick(subcategory.id)}
+                    className="min-w-[100px]"
+                  >
+                    {subcategory.name}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Box>
+        </Box>
+      )}
+
       {(!Array.isArray(filteredProducts) || filteredProducts.length === 0) ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
           <Alert
             severity="info"
             action={
-              searchQuery ? null : (
+              searchQuery || selectedCategory || selectedSubcategory ? null : (
                 <Button
                   color="info"
                   size="small"
@@ -371,56 +458,45 @@ const ProductsList = () => {
               )
             }
           >
-            {searchQuery ? 'Qidiruv bo‘yicha mahsulotlar topilmadi.' : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo‘shing.'}
+            {(searchQuery || selectedCategory || selectedSubcategory)
+              ? 'Qidiruv yoki filtr bo‘yicha mahsulotlar topilmadi.'
+              : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo‘shing.'}
           </Alert>
         </Box>
       ) : (
-        <Grid
-          container
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 2,
-            minHeight: '200px',
-            width: '100%',
-            padding: 2,
-            backgroundColor: theme.palette.background.default,
-          }}
-          spacing={3}
-        >
+        <Grid container spacing={2}>
           {filteredProducts.map((product) => (
-            <Grid item sx={{ width: '30%' }} key={product.id}>
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={4}
+              key={product.id}
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
               <Card
+                className="flex flex-col transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg"
                 sx={{
-                  margin: '0 auto',
+                  width: '100%',
+                  maxWidth: 300, // Constrain card width
                   borderRadius: 2,
-                  boxShadow: theme.shadows[2],
-                  border: '1px solid ' + theme.palette.divider,
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: theme.shadows[6],
-                  },
-                  position: 'relative',
-                  border: !product.id ? '2px dashed ' + theme.palette.primary.main : 'none',
-                  backgroundColor: !product.id ? theme.palette.primary.light + '22' : 'background.paper',
+                  border: !product.id ? '2px dashed' : '1px solid',
+                  borderColor: !product.id ? 'primary.main' : 'divider',
+                  backgroundColor: !product.id ? 'primary.light' + '22' : 'background.paper',
                 }}
               >
-                <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
+                <Box className="absolute top-2 right-2 z-10">
                   <IconButton
                     color="primary"
                     onClick={() => handleEdit(product)}
-                    sx={{
-                      backgroundColor: 'background.paper',
-                      mr: 1,
-                      '&:hover': { backgroundColor: theme.palette.primary.light },
-                    }}
+                    className="bg-white hover:bg-blue-100 mr-1"
+                    size="small"
                   >
-                    <EditIcon />
+                    <EditIcon fontSize="small" />
                   </IconButton>
                   <IconButton
                     color="error"
@@ -428,39 +504,33 @@ const ProductsList = () => {
                       setProductToDelete(product);
                       setDeleteDialogOpen(true);
                     }}
-                    sx={{
-                      backgroundColor: 'background.paper',
-                      '&:hover': { backgroundColor: theme.palette.error.light },
-                    }}
+                    className="bg-white hover:bg-red-100"
+                    size="small"
                   >
-                    <DeleteIcon />
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>
 
                 {product.photo ? (
                   <CardMedia
                     component="img"
-                    height="160"
+                    height="120" // Reduced image height
                     image={`https://hosilbek.pythonanywhere.com${product.photo}`}
                     alt={product.title}
-                    sx={{ objectFit: 'cover', aspectRatio: '4/3' }}
+                    className="object-cover aspect-[4/3]"
                   />
                 ) : (
                   <Box
-                    height="160"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    bgcolor="action.hover"
-                    sx={{ aspectRatio: '4/3' }}
+                    height="120" // Reduced placeholder height
+                    className="flex items-center justify-center bg-gray-100 aspect-[4/3]"
                   >
-                    <FastfoodIcon fontSize="large" color="disabled" />
+                    <FastfoodIcon fontSize="medium" color="disabled" />
                   </Box>
                 )}
 
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                    <Typography gutterBottom variant="h6" component="h2" noWrap>
+                <CardContent className="flex-grow" sx={{ padding: 2 }}>
+                  <Box className="flex justify-between items-start mb-1">
+                    <Typography variant="subtitle1" noWrap>
                       {product.title || 'Yangi mahsulot'}
                     </Typography>
                     <Chip
@@ -474,52 +544,48 @@ const ProductsList = () => {
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    mb={2}
-                    sx={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      minHeight: '4.5em',
-                    }}
+                    className="line-clamp-2 min-h-[2.5em] mb-1"
+                    sx={{ fontSize: '0.85rem' }}
                   >
                     {product.description || 'Tavsif mavjud emas'}
                   </Typography>
 
-                  <Box mb={1} display="flex" flexWrap="wrap" gap={1}>
+                  <Box className="flex flex-wrap gap-1 mb-1">
                     <Chip
                       icon={<KitchenIcon fontSize="small" />}
                       label={product.kitchen?.name || 'Noma\'lum'}
                       size="small"
                       variant="outlined"
+                      sx={{ fontSize: '0.75rem' }}
                     />
                     <Chip
                       icon={<CategoryIcon fontSize="small" />}
                       label={product.category?.name || 'Noma\'lum'}
                       size="small"
                       variant="outlined"
+                      sx={{ fontSize: '0.75rem' }}
                     />
                     {product.subcategory && (
                       <Chip
                         label={product.subcategory.name}
                         size="small"
                         variant="outlined"
+                        sx={{ fontSize: '0.75rem' }}
                       />
                     )}
                   </Box>
 
-                  <Box mb={1}>
-                    <Box display="flex" alignItems="center" mb={0.5}>
-                      <PriceIcon color="primary" fontSize="small" sx={{ mr: 1 }} />
-                      <Typography variant="body1" sx={{ mr: 2, fontWeight: 'bold' }}>
+                  <Box className="mb-1">
+                    <Box className="flex items-center mb-0.5">
+                      <PriceIcon color="primary" fontSize="small" className="mr-1" />
+                      <Typography variant="body2" className="mr-2 font-bold">
                         {parseFloat(product.price).toLocaleString()} so'm
                       </Typography>
                     </Box>
-
                     {parseFloat(product.discount) > 0 && (
-                      <Box display="flex" alignItems="center">
-                        <DiscountIcon color="error" fontSize="small" sx={{ mr: 1 }} />
-                        <Typography variant="body1" color="error" sx={{ textDecoration: 'line-through' }}>
+                      <Box className="flex items-center">
+                        <DiscountIcon color="error" fontSize="small" className="mr-1" />
+                        <Typography variant="body2" color="error" className="line-through">
                           {parseFloat(product.discount).toLocaleString()} so'm
                         </Typography>
                       </Box>
@@ -527,14 +593,14 @@ const ProductsList = () => {
                   </Box>
 
                   {product.discounted_price && (
-                    <Typography variant="subtitle2" color="primary" mb={1} sx={{ fontWeight: 'bold' }}>
+                    <Typography variant="caption" color="primary" className="font-bold mb-1">
                       Chegirmadagi narx: {parseFloat(product.discounted_price).toLocaleString()} so'm
                     </Typography>
                   )}
 
                   {renderRating(product.rating || 0)}
 
-                  <Box mt={2} display="flex" justifyContent="space-between">
+                  <Box className="mt-1 flex justify-between">
                     <Typography variant="caption" color="text.secondary">
                       {product.created_at ? new Date(product.created_at).toLocaleDateString() : 'Yangi'}
                     </Typography>
@@ -549,12 +615,11 @@ const ProductsList = () => {
         </Grid>
       )}
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingProduct} onClose={() => setEditingProduct(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+        <DialogTitle className="bg-blue-600 text-white">
           {editingProduct?.id ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo\'shish'}
         </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
+        <DialogContent className="py-3">
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
@@ -621,10 +686,48 @@ const ProductsList = () => {
                 ))}
               </TextField>
             </Grid>
+            <Grid item xs={12}>
+              <Button
+                variant="outlined"
+                component="label"
+                startIcon={<ImageIcon />}
+                fullWidth
+                sx={{ marginTop: 2 }}
+              >
+                Rasm tanlash
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+              </Button>
+              {imagePreview && (
+                <Box mt={2} display="flex" justifyContent="center">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '200px',
+                      objectFit: 'contain',
+                      borderRadius: '4px',
+                    }}
+                  />
+                </Box>
+              )}
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditingProduct(null)} color="inherit">
+          <Button
+            onClick={() => {
+              setEditingProduct(null);
+              setImageFile(null);
+              setImagePreview(null);
+            }}
+            color="inherit"
+          >
             Bekor qilish
           </Button>
           <Button
@@ -633,21 +736,20 @@ const ProductsList = () => {
             color="primary"
             startIcon={<SaveIcon />}
             disabled={loading}
-            sx={{ minWidth: 120 }}
+            className="min-w-[120px]"
           >
             {loading ? <CircularProgress size={24} /> : 'Saqlash'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle sx={{ bgcolor: 'error.main', color: 'white' }}>Mahsulotni o'chirish</DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
+        <DialogTitle className="bg-red-600 text-white">Mahsulotni o'chirish</DialogTitle>
+        <DialogContent className="py-3">
           <Typography>
             Rostan ham <strong>{productToDelete?.title}</strong> mahsulotini o'chirmoqchimisiz?
           </Typography>
-          <Typography variant="body2" color="text.secondary" mt={2}>
+          <Typography variant="body2" color="text.secondary" className="mt-2">
             Bu amalni qaytarib bo'lmaydi.
           </Typography>
         </DialogContent>
@@ -667,7 +769,6 @@ const ProductsList = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
@@ -677,8 +778,8 @@ const ProductsList = () => {
         <Alert
           onClose={handleCloseSnackbar}
           severity={snackbarSeverity}
-          sx={{ width: '100%' }}
           variant="filled"
+          className="w-full"
         >
           {snackbarMessage}
         </Alert>
