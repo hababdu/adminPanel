@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
-const apiUrl = 'https://hosilbek.pythonanywhere.com/api/user/kitchens/';
+const apiUrl = 'https://hosilbek02.pythonanywhere.com/api/user/kitchens/';
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDpdheNdHd6ydObrXLdB8uDuGkWNhixgpY';
 
 const mapContainerStyle = {
@@ -12,8 +12,8 @@ const mapContainerStyle = {
 };
 
 const defaultCenter = {
-  lat: 40.901058, // Toshkent
-  lng: 71.850070
+  lat: 41.2995, // Toshkent
+  lng: 69.2401
 };
 
 const KitchenPanel = () => {
@@ -29,7 +29,7 @@ const KitchenPanel = () => {
   const [error, setError] = useState(null);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [markerPosition, setMarkerPosition] = useState(defaultCenter);
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('authToken');
 
   // Tokenni localStorage-dan olish
   const getToken = () => {

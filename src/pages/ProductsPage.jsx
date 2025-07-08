@@ -84,7 +84,7 @@ const ProductsList = () => {
   const [kitchens, setKitchens] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
-  const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/products/';
+  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/products/';
   const token = localStorage.getItem('token');
 
   const axiosInstance = axios.create({
@@ -120,9 +120,9 @@ const ProductsList = () => {
       setError(null);
       const headers = { Authorization: `Bearer ${token}` };
       const [kitchensRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/kitchens/', { headers }),
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/categories/', { headers }),
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/subcategories/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/kitchens/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers }),
       ]);
       setKitchens(Array.isArray(kitchensRes.data) ? kitchensRes.data : []);
       setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
@@ -274,7 +274,7 @@ const ProductsList = () => {
     try {
       setLoading(true);
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post('https://hosilbek.pythonanywhere.com/api/user/categories/', { name: newCategoryName.trim() }, { headers });
+      const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/categories/', { name: newCategoryName.trim() }, { headers });
       setCategories((prev) => [...prev, response.data]);
       setNewCategoryName('');
       setSnackbar({ open: true, message: 'Kategoriya muvaffaqiyatli qo‘shildi!', severity: 'success' });
@@ -293,7 +293,7 @@ const ProductsList = () => {
     try {
       setLoading(true);
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post('https://hosilbek.pythonanywhere.com/api/user/subcategories/', {
+      const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', {
         name: newSubcategoryName.trim(),
         category_id: Number(editingProduct.category_id),
       }, { headers });

@@ -62,7 +62,7 @@ const KitchenListPage = () => {
     setLoading(true);
     try {
       const response = await axios.get(
-        'https://hosilbek.pythonanywhere.com/api/user/kitchens/',
+        'https://hosilbek02.pythonanywhere.com/api/user/kitchens/',
         { headers: { Authorization: `Bearer ${token}` } }
       );
       // Ma’lumotlarni validatsiya qilish

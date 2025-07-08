@@ -1,22 +1,26 @@
-// src/redax/authSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
+    token: localStorage.getItem('token') || null, // Dastlab localStorage'dan tokenni olish
     isAuthenticated: !!localStorage.getItem('token'),
-    user: null,
+    username: null,
   },
   reducers: {
-    login(state, action) {
+    login: (state, action) => {
+      state.token = action.payload.token;
       state.isAuthenticated = true;
-      state.user = action.payload;
-      localStorage.setItem('token', action.payload.token);
+      state.username = action.payload.username;
+      localStorage.setItem('token', action.payload.token); // localStorage'ga saqlash
+      console.log('Login muvaffaqiyatli:', { token: action.payload.token, username: action.payload.username });
     },
-    logout(state) {
+    logout: (state) => {
+      state.token = null;
       state.isAuthenticated = false;
-      state.user = null;
+      state.username = null;
       localStorage.removeItem('token');
+      console.log('Logout amalga oshirildi');
     },
   },
 });

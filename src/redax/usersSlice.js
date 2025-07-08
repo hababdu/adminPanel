@@ -1,35 +1,37 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_BASE_URL = 'https://hosilbek.pythonanywhere.com/api/';
+const API_BASE_URL = 'https://hosilbek02.pythonanywhere.com/api/';
 
 // Async thunk to fetch users
 export const fetchUsers = createAsyncThunk(
   'users/fetchUsers',
-  async (_, { rejectWithValue }) => {
-    const token = localStorage.getItem('token');
+  async (_, { getState, rejectWithValue }) => {
+    const { token } = getState().auth;
     if (!token) {
+      console.error('fetchUsers: Token topilmadi');
       return rejectWithValue('Tizimga kirish uchun token topilmadi. Iltimos, qayta kiring.');
     }
 
     try {
       const response = await axios.get(`${API_BASE_URL}user/user-profiles/`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Token ${token}`,
           'Content-Type': 'application/json',
         },
       });
-
+      console.log('fetchUsers: Muvaffaqiyatli javob:', response.data);
       if (response.data && Array.isArray(response.data)) {
         return response.data;
       }
       return rejectWithValue("Foydalanuvchilar ma'lumotlari topilmadi");
     } catch (error) {
+      console.error('fetchUsers xatosi:', error.response?.status, error.response?.data);
       let errorMessage = 'Foydalanuvchilarni yuklashda xatolik yuz berdi';
       if (error.response?.status === 401) {
         errorMessage = 'Autentifikatsiya xatosi: Token yaroqsiz yoki muddati o‘tgan. Iltimos, qayta kiring.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -41,30 +43,32 @@ export const fetchUsers = createAsyncThunk(
 // Async thunk to delete a user
 export const deleteUser = createAsyncThunk(
   'users/deleteUser',
-  async (userId, { rejectWithValue }) => {
-    const token = localStorage.getItem('token');
+  async (userId, { getState, rejectWithValue }) => {
+    const { token } = getState().auth;
     if (!token) {
+      console.error('deleteUser: Token topilmadi');
       return rejectWithValue('Tizimga kirish uchun token topilmadi. Iltimos, qayta kiring.');
     }
 
     try {
       const response = await axios.delete(`${API_BASE_URL}user/user-profiles/${userId}/`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Token ${token}`,
           'Content-Type': 'application/json',
         },
       });
-
+      console.log('deleteUser: Muvaffaqiyatli o‘chirildi:', userId);
       if (response.status === 204) {
         return userId;
       }
       return rejectWithValue('Foydalanuvchini o‘chirishda xatolik yuz berdi');
     } catch (error) {
+      console.error('deleteUser xatosi:', error.response?.status, error.response?.data);
       let errorMessage = 'Foydalanuvchini o‘chirishda xatolik yuz berdi';
       if (error.response?.status === 401) {
         errorMessage = 'Autentifikatsiya xatosi: Token yaroqsiz yoki muddati o‘tgan. Iltimos, qayta kiring.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
       } else if (error.message) {
         errorMessage = error.message;
       }

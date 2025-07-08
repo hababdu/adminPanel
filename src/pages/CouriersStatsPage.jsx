@@ -41,7 +41,7 @@ const ProductsTable = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/products/';
+  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/products/';
   const token = localStorage.getItem('token');
 
   const axiosInstance = axios.create({

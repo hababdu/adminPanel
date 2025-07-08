@@ -58,8 +58,8 @@ const AdminsPage = () => {
   });
 
   const token = localStorage.getItem('token');
-  const API_URL = 'https://hosilbek.pythonanywhere.com/api/user/kitchen-admins/';
-  const KITCHENS_API = 'https://hosilbek.pythonanywhere.com/api/user/kitchens/';
+  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/kitchen-admins/';
+  const KITCHENS_API = 'https://hosilbek02.pythonanywhere.com/api/user/kitchens/';
 
   // Adminlar va oshxonalarni olish
   useEffect(() => {

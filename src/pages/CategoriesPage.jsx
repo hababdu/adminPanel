@@ -55,8 +55,8 @@ const CategorySubcategoryManager = () => {
       try {
         const headers = { Authorization: `Bearer ${token}` };
         const [categoryRes, subcategoryRes] = await Promise.all([
-          axios.get('https://hosilbek.pythonanywhere.com/api/user/categories/', { headers }),
-          axios.get('https://hosilbek.pythonanywhere.com/api/user/subcategories/', { headers }),
+          axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
+          axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers }),
         ]);
         setCategories(categoryRes.data);
         setSubcategories(subcategoryRes.data);
@@ -74,7 +74,7 @@ const CategorySubcategoryManager = () => {
     setIsAddingCategory(true);
     try {
       const res = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/categories/',
+        'https://hosilbek02.pythonanywhere.com/api/user/categories/',
         { name: newCategoryName },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -94,7 +94,7 @@ const CategorySubcategoryManager = () => {
     setIsAddingSubcategory(true);
     try {
       const res = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/subcategories/',
+        'https://hosilbek02.pythonanywhere.com/api/user/subcategories/',
         { name: newSubcategoryName, category_id: selectedCategoryId },
         { headers: { Authorization: `Bearer ${token}` } }
       );

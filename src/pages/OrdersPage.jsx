@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import {
   Box,
@@ -58,6 +59,7 @@ import {
   Person,
   Delete
 } from '@mui/icons-material';
+import { logout } from '../redax/authSlice'; // authSlice'dan logout import qilindi
 import audio from '../assets/notification.mp3';
 
 // API manzillari
@@ -112,6 +114,8 @@ const theme = createTheme({
 
 const AdminOrdersDashboard = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { token, isAuthenticated } = useSelector((state) => state.auth); // Redux'dan token va autentifikatsiya holatini olish
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -155,9 +159,11 @@ const AdminOrdersDashboard = () => {
     setIsFetchingCouriers(true);
     setCourierDialogError('');
     setSuccessMessage('');
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('fetchCouriers: Token yoki autentifikatsiya topilmadi');
       setError('Tizimga kirish talab qilinadi');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       setIsFetchingCouriers(false);
       return;
@@ -165,16 +171,17 @@ const AdminOrdersDashboard = () => {
 
     try {
       const response = await axios.get(COURIERS_API, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
       });
+      console.log('fetchCouriers: Muvaffaqiyatli javob:', response.data);
       const courierData = Array.isArray(response.data) ? response.data : [];
       setCouriers(courierData);
       setSuccessMessage('Kuryerlar ro‘yxati yangilandi');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
+      console.error('fetchCouriers xatosi:', err.response?.status, err.response?.data);
       const errorMessage = err.response?.data?.detail || 'Kuryerlar ro‘yxatini olishda xato';
       setCourierDialogError(errorMessage);
-      console.error('Kuryerlarni olishda xato:', err);
     } finally {
       setIsFetchingCouriers(false);
     }
@@ -184,13 +191,14 @@ const AdminOrdersDashboard = () => {
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
-    setOrdersToDelete([]); // Clear selections on refresh
+    setOrdersToDelete([]);
     setSelectAll(false);
 
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('fetchOrders: Token yoki autentifikatsiya topilmadi');
       setError('Tizimga kirish talab qilinadi');
-      localStorage.setItem('authError', 'Tizimga kirish talab qilinadi. Iltimos, login qiling.');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       setLoading(false);
       return;
@@ -198,11 +206,10 @@ const AdminOrdersDashboard = () => {
 
     try {
       const response = await axios.get(ORDERS_API, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
       });
-
+      console.log('fetchOrders: Muvaffaqiyatli javob:', response.data);
       const ordersData = Array.isArray(response.data) ? response.data : [];
-      console.log('Buyurtmalar:', ordersData);
       const newOrders = ordersData.filter(
         newOrder => !orders.some(prevOrder => prevOrder.id === newOrder.id) &&
                     ['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(newOrder.status)
@@ -233,11 +240,12 @@ const AdminOrdersDashboard = () => {
 
   // Xato boshqaruvi
   const handleFetchError = (err) => {
+    console.error('handleFetchError:', err.response?.status, err.response?.data);
     let errorMessage = 'Buyurtmalarni olishda xato';
     if (err.response) {
       if (err.response.status === 401) {
         errorMessage = 'Sessiya tugagan. Iltimos, qayta kiring';
-        localStorage.setItem('authError', errorMessage);
+        dispatch(logout());
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userProfile');
@@ -255,44 +263,52 @@ const AdminOrdersDashboard = () => {
 
   // Buyurtmani qabul qilish
   const handleAcceptOrder = async (orderId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('handleAcceptOrder: Token yoki autentifikatsiya topilmadi');
       setError('Tizimga kirish talab qilinadi');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       return;
     }
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `${ACCEPT_ORDER_API}${orderId}/`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
       );
+      console.log('handleAcceptOrder: Muvaffaqiyatli:', response.status);
       fetchOrders();
     } catch (err) {
+      console.error('handleAcceptOrder xatosi:', err.response?.status, err.response?.data);
       setError(err.response?.data?.detail || 'Buyurtmani qabul qilishda xato');
     }
   };
 
   // Buyurtmani qaytarish (kuryerni olib tashlash)
   const handleRemoveCourier = async (orderId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('handleRemoveCourier: Token yoki autentifikatsiya topilmadi');
       setError('Tizimga kirish talab qilinadi');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       return;
     }
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `${REMOVE_COURIER_API}${orderId}/`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
       );
+      console.log('handleRemoveCourier: Muvaffaqiyatli:', response.status);
       setSuccessMessage('Kuryer buyurtmadan olib tashlandi');
       setTimeout(() => setSuccessMessage(''), 3000);
       fetchOrders();
     } catch (err) {
+      console.error('handleRemoveCourier xatosi:', err.response?.status, err.response?.data);
       let errorMessage = 'Kuryerni olib tashlashda xato';
       if (err.response) {
         if (err.response.status === 404) {
@@ -316,22 +332,24 @@ const AdminOrdersDashboard = () => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('handleDeleteOrders: Token yoki autentifikatsiya topilmadi');
       setError('Tizimga kirish talab qilinadi');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       return;
     }
 
     try {
-      // Parallel DELETE so'rovlarini jo'natish
-      await Promise.all(
+      const responses = await Promise.all(
         ordersToDelete.map(orderId =>
           axios.delete(`${DELETE_ORDER_API}${orderId}/`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
           })
         )
       );
+      console.log('handleDeleteOrders: Muvaffaqiyatli:', responses.map(res => res.status));
       setSuccessMessage(`${ordersToDelete.length} ta buyurtma muvaffaqiyatli o‘chirildi`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setDeleteDialogOpen(false);
@@ -339,6 +357,7 @@ const AdminOrdersDashboard = () => {
       setSelectAll(false);
       fetchOrders();
     } catch (err) {
+      console.error('handleDeleteOrders xatosi:', err.response?.status, err.response?.data);
       let errorMessage = 'Buyurtmalarni o‘chirishda xato yuz berdi';
       if (err.response) {
         if (err.response.status === 404) {
@@ -390,6 +409,15 @@ const AdminOrdersDashboard = () => {
       return;
     }
 
+    if (!token || !isAuthenticated) {
+      console.error('handleUpdateKitchenTime: Token yoki autentifikatsiya topilmadi');
+      setDialogError('Tizimga kirish kerak');
+      dispatch(logout());
+      localStorage.removeItem('token');
+      navigate('/login', { replace: true });
+      return;
+    }
+
     const hours = parseInt(kitchenHours) || 0;
     const minutes = parseInt(kitchenMinutes) || 0;
     const totalMinutes = hours * 60 + minutes;
@@ -402,23 +430,18 @@ const AdminOrdersDashboard = () => {
     const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setDialogError('Tizimga kirish kerak');
-        navigate('/login', { replace: true });
-        return;
-      }
-
-      await axios.patch(
+      const response = await axios.patch(
         `${ORDERS_API}${currentOrder.id}/`,
         { kitchen_time: formattedTime },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
       );
+      console.log('handleUpdateKitchenTime: Muvaffaqiyatli:', response.status);
       setEditDialogOpen(false);
       setKitchenHours('');
       setKitchenMinutes('');
       fetchOrders();
     } catch (err) {
+      console.error('handleUpdateKitchenTime xatosi:', err.response?.status, err.response?.data);
       setDialogError(err.response?.data?.detail || 'Vaqtni yangilashda xato');
     }
   };
@@ -491,9 +514,11 @@ const AdminOrdersDashboard = () => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token || !isAuthenticated) {
+      console.error('handleUpdateCourier: Token yoki autentifikatsiya topilmadi');
       setCourierDialogError('Tizimga kirish kerak');
+      dispatch(logout());
+      localStorage.removeItem('token');
       navigate('/login', { replace: true });
       return;
     }
@@ -510,20 +535,22 @@ const AdminOrdersDashboard = () => {
           ? 'Kuryer muvaffaqiyatli almashtirildi'
           : 'Kuryer muvaffaqiyatli tayinlandi';
 
-        await axios.post(
+        const response = await axios.post(
           endpoint,
           { courier_id: parseInt(newCourierId) },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
         );
+        console.log('handleUpdateCourier: Muvaffaqiyatli:', response.status);
       } else {
         endpoint = `${REMOVE_COURIER_API}${currentOrder.id}/`;
         successMessage = 'Kuryer muvaffaqiyatli o‘chirildi';
 
-        await axios.post(
+        const response = await axios.post(
           endpoint,
           {},
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
         );
+        console.log('handleUpdateCourier (remove): Muvaffaqiyatli:', response.status);
       }
 
       setSuccessMessage(successMessage);
@@ -532,6 +559,7 @@ const AdminOrdersDashboard = () => {
       setNewCourierId('');
       fetchOrders();
     } catch (err) {
+      console.error('handleUpdateCourier xatosi:', err.response?.status, err.response?.data);
       let errorMessage = 'Kuryerni yangilashda xato';
       if (err.response) {
         if (err.response.status === 404) {
@@ -545,7 +573,6 @@ const AdminOrdersDashboard = () => {
         }
       }
       setCourierDialogError(errorMessage);
-      console.error('Kuryer yangilash xatosi:', err);
     }
   };
 
@@ -555,7 +582,7 @@ const AdminOrdersDashboard = () => {
     fetchCouriers();
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token, isAuthenticated]); // token va isAuthenticated o'zgarishlariga bog'liq
 
   // Holat chipini olish
   const getStatusChip = (status) => {

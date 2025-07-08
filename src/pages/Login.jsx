@@ -25,7 +25,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { login } from '../redax/authSlice';
 
-// Maxsus MUI theme (Register bilan bir xil)
+// Maxsus MUI theme
 const theme = createTheme({
   palette: {
     primary: { main: '#1976d2', contrastText: '#fff' },
@@ -101,7 +101,6 @@ const Login = () => {
     setSuccess('');
     setIsLoading(true);
 
-    // Validatsiya
     if (!formData.username) {
       setError('Foydalanuvchi nomini kiriting.');
       setIsLoading(false);
@@ -115,19 +114,21 @@ const Login = () => {
 
     try {
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/token/',
+        'https://hosilbek02.pythonanywhere.com/api/user/login/',
         {
           username: formData.username,
           password: formData.password,
         }
       );
-      const { access, refresh } = response.data;
-      // Redux store'ga saqlash
-      dispatch(login({ username: formData.username, token: access }));
+      const { token } = response.data;
+      console.log('Login token:', token); // Debug uchun
+      dispatch(login({ username: formData.username, token }));
+      localStorage.setItem('token', token);
       setSuccess('Kirish muvaffaqiyatli! Bosh sahifaga o‘tyapsiz...');
       setFormData({ username: '', password: '' });
       setTimeout(() => navigate('/'), 2000);
     } catch (err) {
+      console.error('Login xatosi:', err.response?.status, err.response?.data);
       setError(err.response?.data?.detail || 'Login yoki parol xato.');
     } finally {
       setIsLoading(false);

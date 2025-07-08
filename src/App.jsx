@@ -1,5 +1,4 @@
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
@@ -9,7 +8,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-// Import page components using lazy loading
+// Lazy loaded page components
 const AddProductPage = React.lazy(() => import('./pages/AddProductPage'));
 const OrderDetails = React.lazy(() => import('./pages/OrderDetails'));
 const ProductsPage = React.lazy(() => import('./pages/ProductsPage'));
@@ -37,41 +36,65 @@ const LogsPage = React.lazy(() => import('./pages/LogsPage'));
 const SupportPage = React.lazy(() => import('./pages/SupportPage'));
 const FaqPage = React.lazy(() => import('./pages/FaqPage'));
 
-// Function to decode JWT and check expiration
-const isTokenExpired = (token) => {
-  if (!token) return true;
+// Token yaroqliligini tekshirish funksiyasi
+const checkTokenValidity = async (token) => {
+  if (!token) {
+    console.error('Token topilmadi');
+    return false;
+  }
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const exp = payload.exp * 1000; // Convert seconds to milliseconds
-    return Date.now() >= exp;
-  } catch (error) {
-    console.error('Error decoding token:', error);
-    return true; // Treat invalid tokens as expired
+    const response = await axios.get('https://hosilbek02.pythonanywhere.com/api/user/user-profiles/', {
+      headers: {
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log('Token tekshiruvi muvaffaqiyatli:', response.status);
+    return true;
+  } catch (err) {
+    console.error('Token tekshirishda xato:', err.response?.status, err.response?.data);
+    return false;
   }
 };
 
-// ProtectedRoute component
+// ProtectedRoute komponenti
 const ProtectedRoute = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { token, isAuthenticated } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token'); // Retrieve token from localStorage
+  const [isValid, setIsValid] = useState(null);
 
   useEffect(() => {
-    // Check token expiration
-    if (isAuthenticated && token && isTokenExpired(token)) {
-      localStorage.removeItem('token'); // Clear expired token
-      dispatch({ type: 'auth/logout' }); // Adjust to your logout action
-      navigate('/login', { replace: true });
-    }
+    const verifyToken = async () => {
+      console.log('Token tekshirilmoqda:', { token, isAuthenticated });
+      if (isAuthenticated && token) {
+        // localStorage bilan sinxronlashtirish
+        localStorage.setItem('token', token);
+        const valid = await checkTokenValidity(token);
+        if (!valid) {
+          console.log('Token yaroqsiz, logout amalga oshirilmoqda');
+          dispatch({ type: 'auth/logout' });
+          localStorage.removeItem('token');
+          navigate('/login', { replace: true });
+        }
+        setIsValid(valid);
+      } else {
+        console.log('Token yoki autentifikatsiya yo‘q');
+        localStorage.removeItem('token');
+        setIsValid(false);
+      }
+    };
+
+    verifyToken();
 
     // Axios interceptor for 401/403 errors
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          localStorage.removeItem('token'); // Clear token on auth error
+          console.error('API xatosi:', error.response.status, error.response.data);
           dispatch({ type: 'auth/logout' });
+          localStorage.removeItem('token');
           navigate('/login', { replace: true });
         }
         return Promise.reject(error);
@@ -82,7 +105,15 @@ const ProtectedRoute = () => {
     return () => axios.interceptors.response.eject(interceptor);
   }, [isAuthenticated, token, dispatch, navigate]);
 
-  return isAuthenticated && token && !isTokenExpired(token) ? <Outlet /> : <Navigate to="/login" replace />;
+  if (isValid === null) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  return isValid ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 // Route groups
@@ -162,7 +193,7 @@ function App() {
                   </AdminLayout>
                 }
               />
-<Route path="/order-details/:id" element={<OrderDetails />} />
+              <Route path="/order-details/:id" element={<OrderDetails />} />
 
               {/* Product Routes */}
               {productRoutes.map((route, index) => (
@@ -215,6 +246,7 @@ function App() {
                   }
                 />
               ))}
+
               {/* Analytics & Reports */}
               {analyticsRoutes.map((route, index) => (
                 <Route

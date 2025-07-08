@@ -17,6 +17,7 @@ import {
   Legend, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
 import AllUsersList from './UsersPage';
+import { logout } from '../redax/authSlice'; // authSlice'dan logout import qilindi
 
 const HomePage = () => {
   const dispatch = useDispatch();
@@ -174,8 +175,8 @@ const HomePage = () => {
   }, [chartType, chartData, isDarkMode]);
 
   const handleLoginRedirect = () => {
-    localStorage.removeItem('token');
-    navigate('/register');
+    dispatch(logout()); // authSlice'dan logout aksiyasi
+    navigate('/login');
   };
 
   if (loading) {

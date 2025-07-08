@@ -1,8 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const ORDERS_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
-const PRODUCTS_API = 'https://hosilbek.pythonanywhere.com/user/api/product/';
+const ORDERS_API = 'https://hosilbek02.pythonanywhere.com/api/user/orders/';
+const PRODUCTS_API = 'https://hosilbek02.pythonanywhere.com/user/api/product/';
 
 export const fetchOrders = createAsyncThunk(
   'orders/fetchOrders',

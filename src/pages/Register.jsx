@@ -178,7 +178,7 @@ const Register = () => {
 
     try {
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/user-profiles/',
+        'https://hosilbek02.pythonanywhere.com/api/user/user-profiles/',
         payload,
         {
           headers: {

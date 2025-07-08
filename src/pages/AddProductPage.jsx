@@ -84,9 +84,9 @@ const AddProductPage = () => {
     try {
       const headers = getAuthHeader();
       const [kitchensRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/kitchens/', { headers }),
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/categories/', { headers }),
-        axios.get('https://hosilbek.pythonanywhere.com/api/user/subcategories/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/kitchens/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers }),
       ]);
 
       console.log('Kitchens API response:', kitchensRes.data);
@@ -217,7 +217,7 @@ const AddProductPage = () => {
     try {
       const headers = getAuthHeader();
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/categories/',
+        'https://hosilbek02.pythonanywhere.com/api/user/categories/',
         { name: newCategoryName.trim() },
         { headers }
       );
@@ -256,7 +256,7 @@ const AddProductPage = () => {
       console.log('Subcategory POST payload:', payload);
 
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/subcategories/',
+        'https://hosilbek02.pythonanywhere.com/api/user/subcategories/',
         payload,
         { headers }
       );
@@ -324,7 +324,7 @@ const AddProductPage = () => {
       formDataToSend.append('photo', photo);
 
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/products/',
+        'https://hosilbek02.pythonanywhere.com/api/user/products/',
         formDataToSend,
         { headers }
       );

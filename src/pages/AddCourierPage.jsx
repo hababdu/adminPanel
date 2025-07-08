@@ -70,7 +70,7 @@ const CouriersPage = () => {
         }
 
         const response = await axios.get(
-          'https://hosilbek.pythonanywhere.com/api/user/couriers/',
+          'https://hosilbek02.pythonanywhere.com/api/user/couriers/',
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -126,7 +126,7 @@ const CouriersPage = () => {
       }
   
       const response = await axios.post(
-        'https://hosilbek.pythonanywhere.com/api/user/couriers/',
+        'https://hosilbek02.pythonanywhere.com/api/user/couriers/',
         formDataToSend,
         {
           headers: {
