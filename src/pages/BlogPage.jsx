@@ -105,7 +105,7 @@ const KitchenListPage = () => {
     setLoading(true);
     try {
       await axios.delete(
-        `https://hosilbek.pythonanywhere.com/api/user/kitchens/${selectedKitchen.id}/`,
+        `https://hosilbek02.pythonanywhere.com/api/user/kitchens/${selectedKitchen.id}/`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setKitchens(prev => prev.filter(k => k.id !== selectedKitchen.id));
@@ -142,7 +142,7 @@ const KitchenListPage = () => {
     setLoading(true);
     try {
       const response = await axios.put(
-        `https://hosilbek.pythonanywhere.com/api/user/kitchens/${selectedKitchen.id}/`,
+        `https://hosilbek02.pythonanywhere.com/api/user/kitchens/${selectedKitchen.id}/`,
         { name: editName.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -327,7 +327,7 @@ const OrderDetails = () => {
                           anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                         >
                           <Avatar
-                            src={item.product?.photo ? `https://hosilbek.pythonanywhere.com${item.product.photo}` : undefined}
+                            src={item.product?.photo ? `https://hosilbek02.pythonanywhere.com${item.product.photo}` : undefined}
                             variant="rounded"
                             sx={{ width: 60, height: 60 }}
                           >

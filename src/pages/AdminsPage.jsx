@@ -40,6 +40,8 @@ import {
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
 
+const API_BASE_URL = 'https://hosilbek02.pythonanywhere.com/api/user/';
+
 const AdminsPage = () => {
   const [admins, setAdmins] = useState([]);
   const [kitchens, setKitchens] = useState([]);
@@ -57,40 +59,38 @@ const AdminsPage = () => {
     kitchen_id: ''
   });
 
+  // Tokenni localStorage'dan olish
   const token = localStorage.getItem('token');
-  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/kitchen-admins/';
-  const KITCHENS_API = 'https://hosilbek02.pythonanywhere.com/api/user/kitchens/';
+
+  // Tokenni tekshirish funksiyasi
+  const checkToken = () => {
+    if (!token) {
+      setError('Token topilmadi. Iltimos, tizimga kiring.');
+      window.location.href = '/login';
+      return false;
+    }
+    return true;
+  };
 
   // Adminlar va oshxonalarni olish
   useEffect(() => {
     const fetchData = async () => {
+      if (!checkToken()) return;
       try {
-        if (!token) {
-          throw new Error('Avtorizatsiya talab qilinadi. Iltimos, tizimga kiring.');
-        }
-
-        // Adminlar ro'yxatini olish
-        const adminsResponse = await axios.get(API_URL, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        // Oshxonalarni olish
-        const kitchensResponse = await axios.get(KITCHENS_API, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
+        setLoading(true);
+        const headers = { Authorization: `Token ${token}` };
+        console.log('Fetching data with token:', token);
+        const [adminsResponse, kitchensResponse] = await Promise.all([
+          axios.get(`${API_BASE_URL}kitchen-admins/`, { headers }),
+          axios.get(`${API_BASE_URL}kitchens/`, { headers })
+        ]);
+        console.log('Admins Response:', adminsResponse.data);
+        console.log('Kitchens Response:', kitchensResponse.data);
         if (adminsResponse.data && Array.isArray(adminsResponse.data)) {
           setAdmins(adminsResponse.data);
         } else {
           throw new Error('Adminlar ma\'lumotlari topilmadi');
         }
-
         if (kitchensResponse.data && Array.isArray(kitchensResponse.data)) {
           setKitchens(kitchensResponse.data);
           if (kitchensResponse.data.length > 0) {
@@ -100,8 +100,8 @@ const AdminsPage = () => {
           throw new Error('Oshxonalar ma\'lumotlari topilmadi');
         }
       } catch (error) {
-        console.error('Ma\'lumotlarni olishda xatolik:', error);
-        setError(error.response?.data?.message || error.message);
+        console.error('Fetch Error:', error.response?.data, error.response?.status);
+        setError(error.response?.data?.detail || 'Ma\'lumotlarni olishda xatolik yuz berdi.');
       } finally {
         setLoading(false);
       }
@@ -112,6 +112,7 @@ const AdminsPage = () => {
 
   // Yangi admin qo'shish
   const handleAddAdmin = async () => {
+    if (!checkToken()) return;
     try {
       setLoading(true);
       setError('');
@@ -126,18 +127,23 @@ const AdminsPage = () => {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        plain_password: formData.password,  // Oddiy matn paroli
         phone_number: formData.phone_number,
         kitchen_id: parseInt(formData.kitchen_id)
       };
 
-      const response = await axios.post(API_URL, payload, {
+      console.log('Adding admin with payload:', payload);
+
+      const response = await axios.post(`${API_BASE_URL}kitchen-admins/`, payload, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Token ${token}`,
           'Content-Type': 'application/json'
         },
         timeout: 10000
-      });      if (response.status === 201) {
+      });
+
+      console.log('Add Admin Response:', response.data);
+
+      if (response.status === 201) {
         setSuccess('Admin muvaffaqiyatli qo\'shildi');
         setOpenAddDialog(false);
         setFormData({
@@ -149,32 +155,17 @@ const AdminsPage = () => {
         });
       }
     } catch (error) {
-      console.error('Admin qo\'shishda xatolik:', error);
-
+      console.error('Add Admin Error:', error.response?.data, error.response?.status);
       let errorMessage = 'Admin qo\'shishda xatolik yuz berdi';
-
       if (error.response) {
-        if (error.response.data && typeof error.response.data === 'object') {
-          errorMessage = error.response.data.detail ||
-                        error.response.data.message ||
-                        Object.values(error.response.data).flat().join(', ');
-        } else if (Array.isArray(error.response.data)) {
-          errorMessage = error.response.data[0];
-        } else {
-          errorMessage = `Server xatosi (${error.response.status})`;
-        }
-
-        console.error('Server xato javobi:', {
-          status: error.response.status,
-          headers: error.response.headers,
-          data: error.response.data,
-        });
+        errorMessage = error.response.data?.detail ||
+                       Object.values(error.response.data).flat().join(', ') ||
+                       `Server xatosi (${error.response.status})`;
       } else if (error.request) {
         errorMessage = 'Serverga ulanib bo\'lmadi. Internet aloqasini tekshiring';
       } else {
         errorMessage = error.message || 'Noma\'lum xatolik yuz berdi';
       }
-
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -183,21 +174,19 @@ const AdminsPage = () => {
 
   // Adminni o'chirish
   const handleDeleteAdmin = async (adminId) => {
+    if (!checkToken()) return;
     try {
-      const response = await axios.delete(`${API_URL}${adminId}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
+      const headers = { Authorization: `Token ${token}` };
+      console.log('Deleting admin with token:', token);
+      const response = await axios.delete(`${API_BASE_URL}kitchen-admins/${adminId}/`, { headers });
+      console.log('Delete Admin Response:', response.data);
       if (response.status === 204) {
         setSuccess('Admin muvaffaqiyatli o\'chirildi');
         setAdmins(admins.filter(admin => admin.id !== adminId));
       }
     } catch (error) {
-      console.error('Adminni o\'chirishda xatolik:', error);
-      setError(error.response?.data?.message || error.message);
+      console.error('Delete Admin Error:', error.response?.data, error.response?.status);
+      setError(error.response?.data?.detail || 'Adminni o\'chirishda xatolik yuz berdi.');
     }
   };
 
@@ -270,7 +259,9 @@ const AdminsPage = () => {
         >
           Yangi Admin Qo'shish
         </Button>
-      </Box>      <Card>
+      </Box>
+
+      <Card>
         <CardContent>
           <TableContainer component={Paper}>
             <Table sx={{ minWidth: 650 }} aria-label="adminlar jadvali">
@@ -338,7 +329,9 @@ const AdminsPage = () => {
             </Table>
           </TableContainer>
         </CardContent>
-      </Card>      {/* Admin tafsilotlari dialogi */}
+      </Card>
+
+      {/* Admin tafsilotlari dialogi */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -403,7 +396,9 @@ const AdminsPage = () => {
             Yopish
           </Button>
         </DialogActions>
-      </Dialog>      {/* Yangi admin qo'shish dialogi */}
+      </Dialog>
+
+      {/* Yangi admin qo'shish dialogi */}
       <Dialog open={openAddDialog} onClose={handleCloseAddDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">

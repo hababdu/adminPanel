@@ -63,14 +63,14 @@ import { logout } from '../redax/authSlice'; // authSlice'dan logout import qili
 import audio from '../assets/notification.mp3';
 
 // API manzillari
-const ORDERS_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
-const COURIERS_API = 'https://hosilbek.pythonanywhere.com/api/user/couriers/';
-const BASE_URL = 'https://hosilbek.pythonanywhere.com';
-const ACCEPT_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
-const REMOVE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/remove_courier/';
-const ASSIGN_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/assign_courier/';
-const REPLACE_COURIER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/replace_courier/';
-const DELETE_ORDER_API = 'https://hosilbek.pythonanywhere.com/api/user/orders/';
+const ORDERS_API = 'https://hosilbek02.pythonanywhere.com/api/user/orders/';
+const COURIERS_API = 'https://hosilbek02.pythonanywhere.com/api/user/couriers/';
+const BASE_URL = 'https://hosilbek02.pythonanywhere.com';
+const ACCEPT_ORDER_API = 'https://hosilbek02.pythonanywhere.com/api/user/orders/';
+const REMOVE_COURIER_API = 'https://hosilbek02.pythonanywhere.com/api/user/remove_courier/';
+const ASSIGN_COURIER_API = 'https://hosilbek02.pythonanywhere.com/api/user/assign_courier/';
+const REPLACE_COURIER_API = 'https://hosilbek02.pythonanywhere.com/api/user/orders/replace_courier/';
+const DELETE_ORDER_API = 'https://hosilbek02.pythonanywhere.com/api/user/orders/';
 
 // Modern tema
 const theme = createTheme({

@@ -113,7 +113,7 @@ const CategorySubcategoryManager = () => {
     if (!editCategory.name || editCategory.name.length < 3) return setError('Kategoriya nomi 3+ belgi.');
     try {
       const res = await axios.put(
-        `https://hosilbek.pythonanywhere.com/api/user/categories/${editCategory.id}/`,
+        `https://hosilbek02.pythonanywhere.com/api/user/categories/${editCategory.id}/`,
         { name: editCategory.name },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -131,7 +131,7 @@ const CategorySubcategoryManager = () => {
     if (!editSubcategory.category_id) return setError('Kategoriya tanlang.');
     try {
       const res = await axios.put(
-        `https://hosilbek.pythonanywhere.com/api/user/subcategories/${editSubcategory.id}/`,
+        `https://hosilbek02.pythonanywhere.com/api/user/subcategories/${editSubcategory.id}/`,
         { name: editSubcategory.name, category_id: editSubcategory.category_id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -148,8 +148,8 @@ const CategorySubcategoryManager = () => {
     try {
       const isCategory = deleteItem.type === 'category';
       const url = isCategory
-        ? `https://hosilbek.pythonanywhere.com/api/user/categories/${deleteItem.id}/`
-        : `https://hosilbek.pythonanywhere.com/api/user/subcategories/${deleteItem.id}/`;
+        ? `https://hosilbek02.pythonanywhere.com/api/user/categories/${deleteItem.id}/`
+        : `https://hosilbek02.pythonanywhere.com/api/user/subcategories/${deleteItem.id}/`;
       await axios.delete(url, { headers: { Authorization: `Bearer ${token}` } });
       if (isCategory) {
         setCategories(categories.filter((c) => c.id !== deleteItem.id));

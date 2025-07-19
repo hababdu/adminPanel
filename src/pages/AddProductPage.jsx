@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   Box, Button, TextField, Typography, Container, Card, CardContent, Avatar,
   Snackbar, Alert, InputAdornment, Select, MenuItem, FormControl, InputLabel,
-  Grid, Paper, Divider, IconButton, CircularProgress ,FormHelperText
+  Grid, Paper, Divider, IconButton, CircularProgress, FormHelperText
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
@@ -23,6 +23,7 @@ import {
   Image as ImageIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom'; // navigate uchun import qo'shildi
 
 // MUI theme
 const theme = createTheme({
@@ -64,6 +65,7 @@ const AddProductPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubcategoriesLoading, setIsSubcategoriesLoading] = useState(false);
 
+  const navigate = useNavigate(); // navigate funksiyasi
   const unitOptions = ['gram', 'liter', 'dona', 'kg', 'ml', 'portion'];
 
   // Get token from localStorage
@@ -72,7 +74,7 @@ const AddProductPage = () => {
     if (!token) {
       throw new Error('Autentifikatsiya tokeni topilmadi');
     }
-    return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Token ${token}` }; // Bearer o'rniga Token ishlatiladi
   }, []);
 
   // Fetch initial data
@@ -113,7 +115,7 @@ const AddProductPage = () => {
       setIsLoading(false);
       setIsSubcategoriesLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, formData.category_id]);
 
   useEffect(() => {
     fetchInitialData();
@@ -354,442 +356,442 @@ const AddProductPage = () => {
   };
 
   return (
-<ThemeProvider theme={theme}>
-  <Box sx={{
-    height: '100dvh',
-    display: 'flex',
-    flexDirection: 'column',
-    bgcolor: 'background.default'
-  }}>
-    {/* Sarlavha qismi */}
-    <Box sx={{
-      bgcolor: 'primary.main',
-      color: 'white',
-      p: 2,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 2,
-      boxShadow: 1
-    }}>
-      <IconButton 
-        color="inherit" 
-        onClick={() => navigate(-1)}
-        sx={{ '&:hover': { bgcolor: 'primary.dark' } }}
-      >
-        <ArrowBackIosIcon fontSize="small" />
-      </IconButton>
-      <Typography variant="h6" fontWeight="medium">
-        Yangi Mahsulot Qo'shish
-      </Typography>
-    </Box>
-
-    {/* Asosiy kontent - scroll qilinadigan qism */}
-    <Box sx={{
-      flex: 1,
-      overflowY: 'auto',
-      p: 2,
-      '&::-webkit-scrollbar': { width: 6 },
-      '&::-webkit-scrollbar-thumb': { bgcolor: 'primary.light', borderRadius: 2 }
-    }}>
-      <Container maxWidth="sm" disableGutters>
-        {/* Rasm yuklash qismi */}
-        <Card sx={{ 
-          mb: 3, 
-          borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+    <ThemeProvider theme={theme}>
+      <Box sx={{
+        height: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.default'
+      }}>
+        {/* Sarlavha qismi */}
+        <Box sx={{
+          bgcolor: 'primary.main',
+          color: 'white',
+          p: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          boxShadow: 1
         }}>
-          <CardContent sx={{ p: 2 }}>
-            <Typography 
-              variant="subtitle1" 
-              gutterBottom
-              sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
-            >
-              <ImageIcon color="primary" sx={{ mr: 1 }} />
-              Mahsulot Rasmi
-            </Typography>
-            
-            <Box
-              sx={{
-                height: 150,
-                bgcolor: 'action.hover',
-                borderRadius: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                position: 'relative',
-                border: '1px dashed',
-                borderColor: 'divider',
-                cursor: 'pointer',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  bgcolor: 'action.selected'
-                }
-              }}
-              onClick={() => document.getElementById('file-upload').click()}
-            >
-              {photoPreview ? (
-                <>
-                  <img
-                    src={photoPreview}
-                    alt="Mahsulot rasmi"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover'
-                    }}
-                  />
-                  <IconButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemovePhoto();
-                    }}
-                    size="small"
-                    sx={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      bgcolor: 'rgba(0,0,0,0.5)',
-                      color: 'white',
-                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                    }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </>
-              ) : (
-                <>
-                  <Box sx={{ 
-                    p: 2,
+          <IconButton 
+            color="inherit" 
+            onClick={() => navigate(-1)}
+            sx={{ '&:hover': { bgcolor: 'primary.dark' } }}
+          >
+            <ArrowBackIosIcon fontSize="small" />
+          </IconButton>
+          <Typography variant="h6" fontWeight="medium">
+            Yangi Mahsulot Qo'shish
+          </Typography>
+        </Box>
+
+        {/* Asosiy kontent - scroll qilinadigan qism */}
+        <Box sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: 2,
+          '&::-webkit-scrollbar': { width: 6 },
+          '&::-webkit-scrollbar-thumb': { bgcolor: 'primary.light', borderRadius: 2 }
+        }}>
+          <Container maxWidth="sm" disableGutters>
+            {/* Rasm yuklash qismi */}
+            <Card sx={{ 
+              mb: 3, 
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography 
+                  variant="subtitle1" 
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
+                >
+                  <ImageIcon color="primary" sx={{ mr: 1 }} />
+                  Mahsulot Rasmi
+                </Typography>
+                
+                <Box
+                  sx={{
+                    height: 150,
+                    bgcolor: 'action.hover',
+                    borderRadius: 1,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    color: 'text.secondary'
-                  }}>
-                    <CloudUploadIcon fontSize="medium" sx={{ mb: 1 }} />
-                    <Typography variant="body2" align="center">
-                      Rasm yuklash uchun bosing
-                    </Typography>
-                    <Typography variant="caption" align="center">
-                      PNG yoki JPEG, maks. 5MB
-                    </Typography>
-                  </Box>
-                </>
-              )}
-              <input
-                id="file-upload"
-                type="file"
-                accept="image/jpeg,image/png"
-                hidden
-                onChange={handleFileChange}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Asosiy maydonlar */}
-        <Card sx={{ 
-          borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          mb: 3
-        }}>
-          <CardContent sx={{ p: 2 }}>
-            <Typography 
-              variant="subtitle1" 
-              gutterBottom
-              sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
-            >
-              <InfoIcon color="primary" sx={{ mr: 1 }} />
-              Asosiy Ma'lumotlar
-            </Typography>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Mahsulot nomi"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <FastfoodIcon color="primary" fontSize="small" />
-                      </InputAdornment>
-                    ),
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    border: '1px dashed',
+                    borderColor: 'divider',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      bgcolor: 'action.selected'
+                    }
                   }}
-                  sx={{ mb: 1 }}
-                />
-              </Grid>
+                  onClick={() => document.getElementById('file-upload').click()}
+                >
+                  {photoPreview ? (
+                    <>
+                      <img
+                        src={photoPreview}
+                        alt="Mahsulot rasmi"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                      <IconButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemovePhoto();
+                        }}
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          color: 'white',
+                          '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <Box sx={{ 
+                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        color: 'text.secondary'
+                      }}>
+                        <CloudUploadIcon fontSize="medium" sx={{ mb: 1 }} />
+                        <Typography variant="body2" align="center">
+                          Rasm yuklash uchun bosing
+                        </Typography>
+                        <Typography variant="caption" align="center">
+                          PNG yoki JPEG, maks. 5MB
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    hidden
+                    onChange={handleFileChange}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
 
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Tavsif"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  multiline
-                  rows={3}
-                  sx={{ mb: 1 }}
-                />
-              </Grid>
+            {/* Asosiy maydonlar */}
+            <Card sx={{ 
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              mb: 3
+            }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography 
+                  variant="subtitle1" 
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
+                >
+                  <InfoIcon color="primary" sx={{ mr: 1 }} />
+                  Asosiy Ma'lumotlar
+                </Typography>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Narx (so'm)"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  type="number"
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PriceIcon color="primary" fontSize="small" />
-                      </InputAdornment>
-                    ),
-                    inputProps: { min: 0 }
-                  }}
-                />
-              </Grid>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Mahsulot nomi"
+                      name="title"
+                      value={formData.title}
+                      onChange={handleChange}
+                      required
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <FastfoodIcon color="primary" fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 1 }}
+                    />
+                  </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Chegirma (so'm)"
-                  name="discount"
-                  value={formData.discount}
-                  onChange={handleChange}
-                  type="number"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <DiscountIcon color="primary" fontSize="small" />
-                      </InputAdornment>
-                    ),
-                    inputProps: { min: 0 }
-                  }}
-                />
-              </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Tavsif"
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      multiline
+                      rows={3}
+                      sx={{ mb: 1 }}
+                    />
+                  </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                  <InputLabel>O'lchov birligi</InputLabel>
-                  <Select
-                    name="unit"
-                    value={formData.unit}
-                    onChange={handleChange}
-                    label="O'lchov birligi"
-                    required
-                  >
-                    {unitOptions.map(unit => (
-                      <MenuItem key={unit} value={unit}>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <ScaleIcon fontSize="small" />
-                          {unit}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Narx (so'm)"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleChange}
+                      type="number"
+                      required
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PriceIcon color="primary" fontSize="small" />
+                          </InputAdornment>
+                        ),
+                        inputProps: { min: 0 }
+                      }}
+                    />
+                  </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                  <InputLabel>Oshxona</InputLabel>
-                  <Select
-                    name="kitchen_id"
-                    value={formData.kitchen_id}
-                    onChange={handleChange}
-                    label="Oshxona"
-                    required
-                  >
-                    {kitchens.map(kitchen => (
-                      <MenuItem key={kitchen.id} value={kitchen.id}>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <KitchenIcon fontSize="small" />
-                          {kitchen.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Chegirma (so'm)"
+                      name="discount"
+                      value={formData.discount}
+                      onChange={handleChange}
+                      type="number"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <DiscountIcon color="primary" fontSize="small" />
+                          </InputAdornment>
+                        ),
+                        inputProps: { min: 0 }
+                      }}
+                    />
+                  </Grid>
 
-        {/* Kategoriyalar qismi */}
-        <Card sx={{ 
-          borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <CardContent sx={{ p: 2 }}>
-            <Typography 
-              variant="subtitle1" 
-              gutterBottom
-              sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
-            >
-              <CategoryIcon color="primary" sx={{ mr: 1 }} />
-              Kategoriyalar
-            </Typography>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Kategoriya</InputLabel>
-                  <Select
-                    name="category_id"
-                    value={formData.category_id}
-                    onChange={handleChange}
-                    label="Kategoriya"
-                    required
-                  >
-                    {categories.map(category => (
-                      <MenuItem key={category.id} value={category.id}>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <CategoryIcon fontSize="small" />
-                          {category.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Subkategoriya</InputLabel>
-                  <Select
-                    name="subcategory_id"
-                    value={formData.subcategory_id}
-                    onChange={handleChange}
-                    label="Subkategoriya"
-                    disabled={!formData.category_id}
-                  >
-                    {formData.category_id ? (
-                      subcategories
-                        .filter(sub => sub.category?.id === Number(formData.category_id))
-                        .map(subcategory => (
-                          <MenuItem key={subcategory.id} value={subcategory.id}>
-                            {subcategory.name}
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                      <InputLabel>O'lchov birligi</InputLabel>
+                      <Select
+                        name="unit"
+                        value={formData.unit}
+                        onChange={handleChange}
+                        label="O'lchov birligi"
+                        required
+                      >
+                        {unitOptions.map(unit => (
+                          <MenuItem key={unit} value={unit}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <ScaleIcon fontSize="small" />
+                              {unit}
+                            </Box>
                           </MenuItem>
-                        ))
-                    ) : (
-                      <MenuItem disabled>Avval kategoriyani tanlang</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
 
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Yangi kategoriya nomi"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    sx={{ flex: 1 }}
-                  />
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    size="small"
-                    onClick={handleAddCategory}
-                    disabled={!newCategoryName.trim()}
-                    sx={{ minWidth: 40 }}
-                  >
-                    <AddIcon fontSize="small" />
-                  </Button>
-                </Box>
-              </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                      <InputLabel>Oshxona</InputLabel>
+                      <Select
+                        name="kitchen_id"
+                        value={formData.kitchen_id}
+                        onChange={handleChange}
+                        label="Oshxona"
+                        required
+                      >
+                        {kitchens.map(kitchen => (
+                          <MenuItem key={kitchen.id} value={kitchen.id}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <KitchenIcon fontSize="small" />
+                              {kitchen.name}
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Yangi subkategoriya nomi"
-                    value={newSubcategoryName}
-                    onChange={(e) => setNewSubcategoryName(e.target.value)}
-                    disabled={!formData.category_id}
-                    sx={{ flex: 1 }}
-                  />
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    size="small"
-                    onClick={handleAddSubcategory}
-                    disabled={!newSubcategoryName.trim() || !formData.category_id}
-                    sx={{ minWidth: 40 }}
-                  >
-                    <AddIcon fontSize="small" />
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Container>
-    </Box>
+            {/* Kategoriyalar qismi */}
+            <Card sx={{ 
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography 
+                  variant="subtitle1" 
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
+                >
+                  <CategoryIcon color="primary" sx={{ mr: 1 }} />
+                  Kategoriyalar
+                </Typography>
 
-    {/* Saqlash tugmasi */}
-    <Box sx={{ 
-      p: 2,
-      borderTop: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.paper',
-      boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
-    }}>
-      <Button
-        fullWidth
-        variant="contained"
-        size="large"
-        onClick={handleSubmit}
-        disabled={isLoading}
-        startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-        sx={{
-          py: 1.5,
-          borderRadius: 2,
-          fontWeight: 'medium',
-          textTransform: 'none',
-          fontSize: '1rem'
-        }}
-      >
-        {isLoading ? 'Saqlanmoqda...' : 'Mahsulotni Saqlash'}
-      </Button>
-    </Box>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Kategoriya</InputLabel>
+                      <Select
+                        name="category_id"
+                        value={formData.category_id}
+                        onChange={handleChange}
+                        label="Kategoriya"
+                        required
+                      >
+                        {categories.map(category => (
+                          <MenuItem key={category.id} value={category.id}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <CategoryIcon fontSize="small" />
+                              {category.name}
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
 
-    {/* Xabarlar uchun snackbar */}
-    <Snackbar
-      open={!!error || !!success}
-      autoHideDuration={5000}
-      onClose={handleCloseSnackbar}
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-    >
-      <Alert 
-        onClose={handleCloseSnackbar}
-        severity={error ? 'error' : 'success'}
-        sx={{ 
-          width: '100%',
-          borderRadius: 2,
-          boxShadow: 3
-        }}
-      >
-        {error || success}
-      </Alert>
-    </Snackbar>
-  </Box>
-</ThemeProvider>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Subkategoriya</InputLabel>
+                      <Select
+                        name="subcategory_id"
+                        value={formData.subcategory_id}
+                        onChange={handleChange}
+                        label="Subkategoriya"
+                        disabled={!formData.category_id}
+                      >
+                        {formData.category_id ? (
+                          subcategories
+                            .filter(sub => sub.category?.id === Number(formData.category_id))
+                            .map(subcategory => (
+                              <MenuItem key={subcategory.id} value={subcategory.id}>
+                                {subcategory.name}
+                              </MenuItem>
+                            ))
+                        ) : (
+                          <MenuItem disabled>Avval kategoriyani tanlang</MenuItem>
+                        )}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Yangi kategoriya nomi"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={handleAddCategory}
+                        disabled={!newCategoryName.trim()}
+                        sx={{ minWidth: 40 }}
+                      >
+                        <AddIcon fontSize="small" />
+                      </Button>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Yangi subkategoriya nomi"
+                        value={newSubcategoryName}
+                        onChange={(e) => setNewSubcategoryName(e.target.value)}
+                        disabled={!formData.category_id}
+                        sx={{ flex: 1 }}
+                      />
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={handleAddSubcategory}
+                        disabled={!newSubcategoryName.trim() || !formData.category_id}
+                        sx={{ minWidth: 40 }}
+                      >
+                        <AddIcon fontSize="small" />
+                      </Button>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Container>
+        </Box>
+
+        {/* Saqlash tugmasi */}
+        <Box sx={{ 
+          p: 2,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
+        }}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleSubmit}
+            disabled={isLoading}
+            startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              fontWeight: 'medium',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
+          >
+            {isLoading ? 'Saqlanmoqda...' : 'Mahsulotni Saqlash'}
+          </Button>
+        </Box>
+
+        {/* Xabarlar uchun snackbar */}
+        <Snackbar
+          open={!!error || !!success}
+          autoHideDuration={5000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={handleCloseSnackbar}
+            severity={error ? 'error' : 'success'}
+            sx={{ 
+              width: '100%',
+              borderRadius: 2,
+              boxShadow: 3
+            }}
+          >
+            {error || success}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </ThemeProvider>
   );
 };
 

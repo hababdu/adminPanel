@@ -24,22 +24,19 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Grid
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   Email as EmailIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
   Close as CloseIcon,
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
+
+const API_BASE_URL = 'https://hosilbek02.pythonanywhere.com/api/user/';
 
 const CouriersPage = () => {
   const [couriers, setCouriers] = useState([]);
@@ -59,34 +56,37 @@ const CouriersPage = () => {
     passport_number: ''
   });
 
+  // Tokenni localStorage'dan olish
   const token = localStorage.getItem('token');
+
+  // Tokenni tekshirish funksiyasi
+  const checkToken = () => {
+    if (!token) {
+      setError('Token topilmadi. Iltimos, tizimga kiring.');
+      window.location.href = '/login';
+      return false;
+    }
+    return true;
+  };
 
   // Barcha kuryerlarni olish
   useEffect(() => {
     const fetchCouriers = async () => {
+      if (!checkToken()) return;
       try {
-        if (!token) {
-          throw new Error('Avtorizatsiya talab qilinadi. Iltimos, tizimga kiring.');
-        }
-
-        const response = await axios.get(
-          'https://hosilbek02.pythonanywhere.com/api/user/couriers/',
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
+        setLoading(true);
+        const headers = { Authorization: `Token ${token}` };
+        console.log('Fetching couriers with token:', token);
+        const response = await axios.get(`${API_BASE_URL}couriers/`, { headers });
+        console.log('Couriers Response:', response.data);
         if (response.data && Array.isArray(response.data)) {
           setCouriers(response.data);
         } else {
           throw new Error('Kuryerlar ma\'lumotlari topilmadi');
         }
       } catch (error) {
-        console.error('Kuryerlarni olishda xatolik:', error);
-        setError(error.response?.data?.message || error.message);
+        console.error('Fetch Error:', error.response?.data, error.response?.status);
+        setError(error.response?.data?.detail || 'Kuryerlarni olishda xatolik yuz berdi.');
       } finally {
         setLoading(false);
       }
@@ -97,16 +97,17 @@ const CouriersPage = () => {
 
   // Yangi kuryer qo'shish
   const handleAddCourier = async () => {
+    if (!checkToken()) return;
     try {
       setLoading(true);
       setError('');
-  
+
       // Ma'lumotlarni tekshirish
       if (!formData.username || !formData.email || !formData.password || 
           !formData.phone_number || !formData.passport_series || !formData.passport_number) {
         throw new Error('Barcha majburiy maydonlarni to\'ldiring');
       }
-  
+
       const formDataToSend = new FormData();
       formDataToSend.append('username', formData.username);
       formDataToSend.append('email', formData.email);
@@ -115,30 +116,28 @@ const CouriersPage = () => {
       formDataToSend.append('passport_series', formData.passport_series);
       formDataToSend.append('passport_number', formData.passport_number);
       
-      // Agar rasm tanlangan bo'lsa
       if (formData.photo) {
         formDataToSend.append('photo', formData.photo);
       }
-  
-      // Debug uchun FormData ni ko'rish
+
       for (let [key, value] of formDataToSend.entries()) {
         console.log(key, value);
       }
-  
+
       const response = await axios.post(
-        'https://hosilbek02.pythonanywhere.com/api/user/couriers/',
+        `${API_BASE_URL}couriers/`,
         formDataToSend,
         {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Token ${token}`,
             'Content-Type': 'multipart/form-data'
           },
           timeout: 10000
         }
       );
-  
-      console.log('Server javobi:', response);
-  
+
+      console.log('Add Courier Response:', response.data);
+
       if (response.status === 201) {
         setSuccess('Kuryer muvaffaqiyatli qo\'shildi');
         setOpenAddDialog(false);
@@ -153,31 +152,17 @@ const CouriersPage = () => {
         });
       }
     } catch (error) {
-      console.error('Kuryer qo\'shishda xatolik:', error);
-      
+      console.error('Add Courier Error:', error.response?.data, error.response?.status);
       let errorMessage = 'Kuryer qo\'shishda xatolik yuz berdi';
-      
       if (error.response) {
-        // Agar serverdan tushunarli xabar kelgan bo'lsa
-        if (error.response.data && typeof error.response.data === 'object') {
-          errorMessage = error.response.data.detail || 
-                        error.response.data.message || 
-                        JSON.stringify(error.response.data);
-        } else {
-          errorMessage = `Server xatosi (${error.response.status})`;
-        }
-        
-        console.error('Server xato javobi:', {
-          status: error.response.status,
-          headers: error.response.headers,
-          data: error.response.data,
-        });
+        errorMessage = error.response.data?.detail || 
+                       JSON.stringify(error.response.data) || 
+                       `Server xatosi (${error.response.status})`;
       } else if (error.request) {
         errorMessage = 'Serverga ulanib bo\'lmadi. Internet aloqasini tekshiring';
       } else {
         errorMessage = error.message || 'Noma\'lum xatolik yuz berdi';
       }
-      
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -186,23 +171,22 @@ const CouriersPage = () => {
 
   // Kuryerni o'chirish
   const handleDeleteCourier = async (courierId) => {
+    if (!checkToken()) return;
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('Deleting courier with token:', token);
       const response = await axios.delete(
-        `https://hosilbek.pythonanywhere.com/api/user/couriers/${courierId}/`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
+        `${API_BASE_URL}couriers/${courierId}/`,
+        { headers }
       );
-
+      console.log('Delete Courier Response:', response.data);
       if (response.status === 204) {
         setSuccess('Kuryer muvaffaqiyatli o\'chirildi');
+        setCouriers(couriers.filter((courier) => courier.id !== courierId));
       }
     } catch (error) {
-      console.error('Kuryerni o\'chirishda xatolik:', error);
-      setError(error.response?.data?.message || error.message);
+      console.error('Delete Courier Error:', error.response?.data, error.response?.status);
+      setError(error.response?.data?.detail || 'Kuryerni o\'chirishda xatolik yuz berdi.');
     }
   };
 

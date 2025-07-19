@@ -89,7 +89,7 @@ const ProductsList = () => {
 
   const axiosInstance = axios.create({
     baseURL: API_URL,
-    headers: { Authorization: token ? `Bearer ${token}` : '', 'Content-Type': 'application/json' },
+    headers: { Authorization: token ? `Token ${token}` : '', 'Content-Type': 'application/json' },
   });
 
   const fetchProducts = useCallback(async () => {
@@ -118,7 +118,7 @@ const ProductsList = () => {
     try {
       setLoading(true);
       setError(null);
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Token ${token}` };
       const [kitchensRes, categoriesRes, subcategoriesRes] = await Promise.all([
         axios.get('https://hosilbek02.pythonanywhere.com/api/user/kitchens/', { headers }),
         axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
@@ -175,7 +175,7 @@ const ProductsList = () => {
       subcategory_id: product.subcategory?.id || '',
     });
     setImageFile(null);
-    setImagePreview(product.photo ? `https://hosilbek.pythonanywhere.com${product.photo}` : null);
+    setImagePreview(product.photo ? `https://hosilbek02.pythonanywhere.com${product.photo}` : null);
   }, [kitchens, categories]);
 
   const handleImageChange = useCallback((e) => {
@@ -273,7 +273,7 @@ const ProductsList = () => {
     }
     try {
       setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Token ${token}` };
       const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/categories/', { name: newCategoryName.trim() }, { headers });
       setCategories((prev) => [...prev, response.data]);
       setNewCategoryName('');
@@ -292,7 +292,7 @@ const ProductsList = () => {
     }
     try {
       setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Token ${token}` };
       const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', {
         name: newSubcategoryName.trim(),
         category_id: Number(editingProduct.category_id),
@@ -499,7 +499,7 @@ const ProductsList = () => {
                         </IconButton>
                       </Box>
                       {product.photo ? (
-                        <CardMedia component="img" height="120" image={`https://hosilbek.pythonanywhere.com${product.photo}`} alt={product.title || 'Mahsulot'} sx={{ objectFit: 'cover', aspectRatio: '4/3' }} />
+                        <CardMedia component="img" height="120" image={`https://hosilbek02.pythonanywhere.com${product.photo}`} alt={product.title || 'Mahsulot'} sx={{ objectFit: 'cover', aspectRatio: '4/3' }} />
                       ) : (
                         <Box sx={{ height: 120, display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: 'grey.100', aspectRatio: '4/3' }}>
                           <FastfoodIcon fontSize="medium" color="disabled" />
