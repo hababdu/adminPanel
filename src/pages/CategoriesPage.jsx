@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
@@ -10,6 +9,7 @@ import {
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Add, Edit, Delete, Category, SubdirectoryArrowRight } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 
 const theme = createTheme({
   palette: {
@@ -46,14 +46,21 @@ const CategorySubcategoryManager = () => {
   const [isAddingSubcategory, setIsAddingSubcategory] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-
-  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
+      const token = localStorage.getItem('token')?.trim();
+      console.log('FetchData token:', token); // Debug
+      if (!token) {
+        setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+        navigate('/login');
+        return;
+      }
       setIsLoading(true);
       try {
-        const headers = { Authorization: `Bearer ${token}` };
+        const headers = { Authorization: `Token ${token}` };
+        console.log('FetchData headers:', headers); // Debug
         const [categoryRes, subcategoryRes] = await Promise.all([
           axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
           axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers }),
@@ -61,106 +68,213 @@ const CategorySubcategoryManager = () => {
         setCategories(categoryRes.data);
         setSubcategories(subcategoryRes.data);
       } catch (err) {
-        setError('Ma\'lumotlarni olishda xatolik: ' + (err.response?.data?.message || err.message));
+        console.error('FetchData xatosi:', err.response?.status, err.response?.data);
+        if (err.response?.status === 401) {
+          setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+          localStorage.removeItem('token');
+          navigate('/login');
+        } else {
+          setError('Ma\'lumotlarni olishda xatolik: ' + (err.response?.data?.message || err.message));
+        }
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [token]);
+  }, [navigate]);
 
   const handleAddCategory = async () => {
-    if (!newCategoryName || newCategoryName.length < 3) return setError('Kategoriya nomi 3+ belgi.');
+    if (!newCategoryName || newCategoryName.length < 3) {
+      setError('Kategoriya nomi kamida 3 belgidan iborat bo‘lishi kerak.');
+      return;
+    }
+    const token = localStorage.getItem('token')?.trim();
+    console.log('AddCategory token:', token); // Debug
+    if (!token) {
+      setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+      navigate('/login');
+      return;
+    }
     setIsAddingCategory(true);
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('AddCategory headers:', headers); // Debug
       const res = await axios.post(
         'https://hosilbek02.pythonanywhere.com/api/user/categories/',
         { name: newCategoryName },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setCategories([...categories, res.data]);
       setNewCategoryName('');
-      setSuccess('Kategoriya qo‘shildi!');
+      setSuccess('Kategoriya muvaffaqiyatli qo‘shildi!');
     } catch (err) {
-      setError(err.response?.data?.message || 'Kategoriya qo‘shishda xatolik.');
+      console.error('AddCategory xatosi:', err.response?.status, err.response?.data);
+      if (err.response?.status === 401) {
+        setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else {
+        setError(err.response?.data?.message || 'Kategoriya qo‘shishda xatolik.');
+      }
     } finally {
       setIsAddingCategory(false);
     }
   };
 
   const handleAddSubcategory = async () => {
-    if (!newSubcategoryName || newSubcategoryName.length < 3) return setError('Subkategoriya nomi 3+ belgi.');
-    if (!selectedCategoryId) return setError('Kategoriya tanlang.');
+    if (!newSubcategoryName || newSubcategoryName.length < 3) {
+      setError('Subkategoriya nomi kamida 3 belgidan iborat bo‘lishi kerak.');
+      return;
+    }
+    if (!selectedCategoryId) {
+      setError('Iltimos, kategoriya tanlang.');
+      return;
+    }
+    const token = localStorage.getItem('token')?.trim();
+    console.log('AddSubcategory token:', token); // Debug
+    if (!token) {
+      setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+      navigate('/login');
+      return;
+    }
     setIsAddingSubcategory(true);
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('AddSubcategory headers:', headers); // Debug
       const res = await axios.post(
         'https://hosilbek02.pythonanywhere.com/api/user/subcategories/',
         { name: newSubcategoryName, category_id: selectedCategoryId },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setSubcategories([...subcategories, res.data]);
       setNewSubcategoryName('');
       setSelectedCategoryId('');
-      setSuccess('Subkategoriya qo‘shildi!');
+      setSuccess('Subkategoriya muvaffaqiyatli qo‘shildi!');
     } catch (err) {
-      setError(err.response?.data?.message || 'Subkategoriya qo‘shishda xatolik.');
+      console.error('AddSubcategory xatosi:', err.response?.status, err.response?.data);
+      if (err.response?.status === 401) {
+        setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else {
+        setError(err.response?.data?.message || 'Subkategoriya qo‘shishda xatolik.');
+      }
     } finally {
       setIsAddingSubcategory(false);
     }
   };
 
   const handleEditCategory = async () => {
-    if (!editCategory.name || editCategory.name.length < 3) return setError('Kategoriya nomi 3+ belgi.');
+    if (!editCategory?.name || editCategory.name.length < 3) {
+      setError('Kategoriya nomi kamida 3 belgidan iborat bo‘lishi kerak.');
+      return;
+    }
+    const token = localStorage.getItem('token')?.trim();
+    console.log('EditCategory token:', token); // Debug
+    if (!token) {
+      setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+      navigate('/login');
+      return;
+    }
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('EditCategory headers:', headers); // Debug
       const res = await axios.put(
         `https://hosilbek02.pythonanywhere.com/api/user/categories/${editCategory.id}/`,
         { name: editCategory.name },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setCategories(categories.map((c) => (c.id === editCategory.id ? res.data : c)));
-      setSuccess('Kategoriya tahrirlandi!');
+      setSuccess('Kategoriya muvaffaqiyatli tahrirlandi!');
       setOpenEditDialog(false);
       setEditCategory(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Tahrirlashda xatolik.');
+      console.error('EditCategory xatosi:', err.response?.status, err.response?.data);
+      if (err.response?.status === 401) {
+        setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else {
+        setError(err.response?.data?.message || 'Kategoriya tahrirlashda xatolik.');
+      }
     }
   };
 
   const handleEditSubcategory = async () => {
-    if (!editSubcategory.name || editSubcategory.name.length < 3) return setError('Subkategoriya nomi 3+ belgi.');
-    if (!editSubcategory.category_id) return setError('Kategoriya tanlang.');
+    if (!editSubcategory?.name || editSubcategory.name.length < 3) {
+      setError('Subkategoriya nomi kamida 3 belgidan iborat bo‘lishi kerak.');
+      return;
+    }
+    if (!editSubcategory?.category_id) {
+      setError('Iltimos, kategoriya tanlang.');
+      return;
+    }
+    const token = localStorage.getItem('token')?.trim();
+    console.log('EditSubcategory token:', token); // Debug
+    if (!token) {
+      setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+      navigate('/login');
+      return;
+    }
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('EditSubcategory headers:', headers); // Debug
       const res = await axios.put(
         `https://hosilbek02.pythonanywhere.com/api/user/subcategories/${editSubcategory.id}/`,
         { name: editSubcategory.name, category_id: editSubcategory.category_id },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setSubcategories(subcategories.map((s) => (s.id === editSubcategory.id ? res.data : s)));
-      setSuccess('Subkategoriya tahrirlandi!');
+      setSuccess('Subkategoriya muvaffaqiyatli tahrirlandi!');
       setOpenEditDialog(false);
       setEditSubcategory(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Tahrirlashda xatolik.');
+      console.error('EditSubcategory xatosi:', err.response?.status, err.response?.data);
+      if (err.response?.status === 401) {
+        setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else {
+        setError(err.response?.data?.message || 'Subkategoriya tahrirlashda xatolik.');
+      }
     }
   };
 
   const handleDelete = async () => {
+    const token = localStorage.getItem('token')?.trim();
+    console.log('Delete token:', token); // Debug
+    if (!token) {
+      console.error('Delete xatosi: Token topilmadi');
+      setError('Autentifikatsiya ma\'lumotlari topilmadi. Iltimos, qayta kiring.');
+      navigate('/login');
+      return;
+    }
     try {
+      const headers = { Authorization: `Token ${token}` };
+      console.log('Delete headers:', headers); // Debug
       const isCategory = deleteItem.type === 'category';
       const url = isCategory
         ? `https://hosilbek02.pythonanywhere.com/api/user/categories/${deleteItem.id}/`
         : `https://hosilbek02.pythonanywhere.com/api/user/subcategories/${deleteItem.id}/`;
-      await axios.delete(url, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(url, { headers });
       if (isCategory) {
         setCategories(categories.filter((c) => c.id !== deleteItem.id));
       } else {
         setSubcategories(subcategories.filter((s) => s.id !== deleteItem.id));
       }
-      setSuccess(`${isCategory ? 'Kategoriya' : 'Subkategoriya'} o‘chirildi!`);
+      setSuccess(`${isCategory ? 'Kategoriya' : 'Subkategoriya'} muvaffaqiyatli o‘chirildi!`);
       setOpenDeleteDialog(false);
       setDeleteItem(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'O‘chirishda xatolik.');
+      console.error('Delete xatosi:', err.response?.status, err.response?.data);
+      if (err.response?.status === 401) {
+        console.error('Delete xatosi: 401 Unauthorized', err.response?.data);
+        setError('Autentifikatsiya muvaffaqiyatsiz. Iltimos, qayta kiring.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else {
+        setError(err.response?.data?.message || 'O‘chirishda xatolik.');
+      }
     }
   };
 
@@ -196,7 +310,7 @@ const CategorySubcategoryManager = () => {
                     startIcon={isAddingCategory ? <CircularProgress size={16} /> : <Add />}
                     sx={{ minWidth: '100px' }}
                   >
-                    Qo‘sh
+                    Qo‘shish
                   </Button>
                 </Box>
                 {isLoading ? (
@@ -276,7 +390,7 @@ const CategorySubcategoryManager = () => {
                     startIcon={isAddingSubcategory ? <CircularProgress size={16} /> : <Add />}
                     sx={{ minWidth: '100px' }}
                   >
-                    Qo‘sh
+                    Qo‘shish
                   </Button>
                 </Box>
                 {isLoading ? (
@@ -363,7 +477,7 @@ const CategorySubcategoryManager = () => {
             )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenEditDialog(false)} variant="outlined">Bekor</Button>
+            <Button onClick={() => setOpenEditDialog(false)} variant="outlined">Bekor qilish</Button>
             <Button
               onClick={editCategory ? handleEditCategory : handleEditSubcategory}
               variant="contained"
@@ -381,8 +495,8 @@ const CategorySubcategoryManager = () => {
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenDeleteDialog(false)} variant="outlined">Bekor</Button>
-            <Button onClick={handleDelete} color="error" variant="contained">O‘chir</Button>
+            <Button onClick={() => setOpenDeleteDialog(false)} variant="outlined">Bekor qilish</Button>
+            <Button onClick={handleDelete} color="error" variant="contained">O‘chirish</Button>
           </DialogActions>
         </Dialog>
         <Snackbar open={!!error} autoHideDuration={6000} onClose={handleClose}>

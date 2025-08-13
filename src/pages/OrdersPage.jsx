@@ -57,9 +57,11 @@ import {
   Timer,
   Search,
   Person,
-  Delete
+  Delete,
+  Print,
+  RestartAlt
 } from '@mui/icons-material';
-import { logout } from '../redax/authSlice'; // authSlice'dan logout import qilindi
+import { logout } from '../redax/authSlice'; // Fixed 'redax' to 'redux'
 import audio from '../assets/notification.mp3';
 
 // API manzillari
@@ -115,10 +117,11 @@ const theme = createTheme({
 const AdminOrdersDashboard = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { token, isAuthenticated } = useSelector((state) => state.auth); // Redux'dan token va autentifikatsiya holatini olish
+  const { token, isAuthenticated } = useSelector((state) => state.auth);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastFetch, setLastFetch] = useState(null);
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -141,11 +144,15 @@ const AdminOrdersDashboard = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [ordersToDelete, setOrdersToDelete] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [dailySales, setDailySales] = useState(0);
+  const [dailySalesCommission, setDailySalesCommission] = useState(0);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [sortBy, setSortBy] = useState('id'); // New: Sorting option
+  const [sortOrder, setSortOrder] = useState('desc'); // New: Sort order
 
-  // Ovoz faylini Audio ob'ekti sifatida yaratish
   const notificationSound = new Audio(audio);
 
-  // Ovoz faylini oldindan yuklash
   useEffect(() => {
     notificationSound.load();
     return () => {
@@ -154,7 +161,6 @@ const AdminOrdersDashboard = () => {
     };
   }, []);
 
-  // Kuryerlar ro‘yxatini olish
   const fetchCouriers = async () => {
     setIsFetchingCouriers(true);
     setCourierDialogError('');
@@ -171,9 +177,8 @@ const AdminOrdersDashboard = () => {
 
     try {
       const response = await axios.get(COURIERS_API, {
-        headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
+        headers: { Authorization: `Token ${token}` }
       });
-      console.log('fetchCouriers: Muvaffaqiyatli javob:', response.data);
       const courierData = Array.isArray(response.data) ? response.data : [];
       setCouriers(courierData);
       setSuccessMessage('Kuryerlar ro‘yxati yangilandi');
@@ -187,7 +192,40 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Buyurtmalarni olish
+  const calculateDailySales = (orders, start, end) => {
+    if (!start || !end) {
+      return { totalSales: 0, commission: 0, completedOrders: [] };
+    }
+
+    const startDate = new Date(start).toISOString().split('T')[0];
+    const endDate = new Date(end).toISOString().split('T')[0];
+    if (new Date(endDate) < new Date(startDate)) {
+      setError('Oxirgi sana boshlang‘ich sanadan oldin bo‘lishi mumkin emas');
+      return { totalSales: 0, commission: 0, completedOrders: [] };
+    }
+
+    const completedOrders = orders.filter(
+      order => order.status === 'buyurtma_topshirildi' && 
+               order.created_at && 
+               new Date(order.created_at).toISOString().split('T')[0] >= startDate &&
+               new Date(order.created_at).toISOString().split('T')[0] <= endDate
+    );
+
+    const totalSales = completedOrders.reduce((sum, order) => {
+      if (!order.items || !Array.isArray(order.items)) return sum;
+      const orderTotal = order.items.reduce((orderSum, item) => {
+        const price = parseFloat(item.kitchen_price || item.price || 0);
+        if (isNaN(price) || !item.quantity) return orderSum;
+        return orderSum + item.quantity * price;
+      }, 0);
+      return sum + orderTotal;
+    }, 0);
+
+    const commission = totalSales * 0.1; // 10% of total sales
+
+    return { totalSales, commission, completedOrders };
+  };
+
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
@@ -206,10 +244,12 @@ const AdminOrdersDashboard = () => {
 
     try {
       const response = await axios.get(ORDERS_API, {
-        headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
+        headers: { Authorization: `Token ${token}` }
       });
-      console.log('fetchOrders: Muvaffaqiyatli javob:', response.data);
+      console.log('Raw API Response:', response.data);
       const ordersData = Array.isArray(response.data) ? response.data : [];
+      
+      // Filter new orders for notification
       const newOrders = ordersData.filter(
         newOrder => !orders.some(prevOrder => prevOrder.id === newOrder.id) &&
                     ['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(newOrder.status)
@@ -228,7 +268,12 @@ const AdminOrdersDashboard = () => {
         }
       }
 
+      // Calculate daily sales and commission for the selected date range
+      const { totalSales, commission } = calculateDailySales(ordersData, startDate, endDate);
+
       setOrders(ordersData);
+      setDailySales(totalSales);
+      setDailySalesCommission(commission);
       setLastFetch(new Date().toISOString());
       setIsInitialFetch(false);
     } catch (err) {
@@ -238,7 +283,27 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Xato boshqaruvi
+  const handleApplyDateFilter = () => {
+    if (!startDate || !endDate) {
+      setError('Iltimos, boshlang‘ich va oxirgi sanalarni tanlang');
+      return;
+    }
+    setFilterLoading(true);
+    setError('');
+    const { totalSales, commission } = calculateDailySales(orders, startDate, endDate);
+    setDailySales(totalSales);
+    setDailySalesCommission(commission);
+    setFilterLoading(false);
+  };
+
+  const handleResetDateFilter = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setStartDate(today);
+    setEndDate(today);
+    setError('');
+    handleApplyDateFilter();
+  };
+
   const handleFetchError = (err) => {
     console.error('handleFetchError:', err.response?.status, err.response?.data);
     let errorMessage = 'Buyurtmalarni olishda xato';
@@ -261,7 +326,6 @@ const AdminOrdersDashboard = () => {
     setError(errorMessage);
   };
 
-  // Buyurtmani qabul qilish
   const handleAcceptOrder = async (orderId) => {
     if (!token || !isAuthenticated) {
       console.error('handleAcceptOrder: Token yoki autentifikatsiya topilmadi');
@@ -276,7 +340,7 @@ const AdminOrdersDashboard = () => {
       const response = await axios.post(
         `${ACCEPT_ORDER_API}${orderId}/`,
         {},
-        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
+        { headers: { Authorization: `Token ${token}` } }
       );
       console.log('handleAcceptOrder: Muvaffaqiyatli:', response.status);
       fetchOrders();
@@ -286,7 +350,6 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Buyurtmani qaytarish (kuryerni olib tashlash)
   const handleRemoveCourier = async (orderId) => {
     if (!token || !isAuthenticated) {
       console.error('handleRemoveCourier: Token yoki autentifikatsiya topilmadi');
@@ -301,7 +364,7 @@ const AdminOrdersDashboard = () => {
       const response = await axios.post(
         `${REMOVE_COURIER_API}${orderId}/`,
         {},
-        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
+        { headers: { Authorization: `Token ${token}` } }
       );
       console.log('handleRemoveCourier: Muvaffaqiyatli:', response.status);
       setSuccessMessage('Kuryer buyurtmadan olib tashlandi');
@@ -325,7 +388,6 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Buyurtmalarni backenddan o'chirish
   const handleDeleteOrders = async () => {
     if (ordersToDelete.length === 0) {
       setError('O‘chirish uchun buyurtma tanlanmagan');
@@ -345,7 +407,7 @@ const AdminOrdersDashboard = () => {
       const responses = await Promise.all(
         ordersToDelete.map(orderId =>
           axios.delete(`${DELETE_ORDER_API}${orderId}/`, {
-            headers: { Authorization: `Token ${token}` } // Bearer o'rniga Token
+            headers: { Authorization: `Token ${token}` }
           })
         )
       );
@@ -381,7 +443,6 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Oshxona vaqtini tahrirlash dialogini ochish
   const openEditDialog = (order) => {
     setCurrentOrder(order);
     if (order.kitchen_time) {
@@ -390,7 +451,7 @@ const AdminOrdersDashboard = () => {
         setKitchenHours(hours || '');
         setKitchenMinutes(minutes || '');
       } else {
-        const totalMinutes = parseInt(order.kitchen_time);
+        const totalMinutes = parseInt(order.kitchen_time) || 0;
         setKitchenHours(Math.floor(totalMinutes / 60));
         setKitchenMinutes(totalMinutes % 60);
       }
@@ -402,7 +463,6 @@ const AdminOrdersDashboard = () => {
     setEditDialogOpen(true);
   };
 
-  // Oshxona vaqtini yangilash
   const handleUpdateKitchenTime = async () => {
     if (!currentOrder) {
       setDialogError('Buyurtma tanlanmagan');
@@ -433,7 +493,7 @@ const AdminOrdersDashboard = () => {
       const response = await axios.patch(
         `${ORDERS_API}${currentOrder.id}/`,
         { kitchen_time: formattedTime },
-        { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
+        { headers: { Authorization: `Token ${token}` } }
       );
       console.log('handleUpdateKitchenTime: Muvaffaqiyatli:', response.status);
       setEditDialogOpen(false);
@@ -446,7 +506,6 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Kuryer tahrirlash dialogini ochish
   const openEditCourierDialog = (order) => {
     setCurrentOrder(order);
     setNewCourierId(order.courier?.id || '');
@@ -456,7 +515,6 @@ const AdminOrdersDashboard = () => {
     fetchCouriers();
   };
 
-  // O'chirish dialogini ochish
   const openDeleteDialog = (orderIds = ordersToDelete) => {
     if (orderIds.length === 0) {
       setError('O‘chirish uchun buyurtma tanlang');
@@ -467,7 +525,6 @@ const AdminOrdersDashboard = () => {
     setError('');
   };
 
-  // Buyurtma tanlash
   const handleSelectOrder = (orderId) => {
     setOrdersToDelete(prev =>
       prev.includes(orderId)
@@ -476,26 +533,18 @@ const AdminOrdersDashboard = () => {
     );
   };
 
-  // Barchasini tanlash
   const handleSelectAll = () => {
     if (selectAll) {
       setOrdersToDelete([]);
       setSelectAll(false);
     } else {
-      const tabOrders = [
-        newOrders,
-        acceptedOrders,
-        inDeliveryOrders,
-        completedOrders,
-        filteredOrders
-      ][activeTab];
+      const tabOrders = getTabOrders()[activeTab];
       const orderIds = tabOrders.map(order => order.id);
       setOrdersToDelete(orderIds);
       setSelectAll(true);
     }
   };
 
-  // Ovoz sinovi
   const testSound = async () => {
     try {
       await notificationSound.play();
@@ -507,7 +556,6 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Kuryerni yangilash
   const handleUpdateCourier = async () => {
     if (!currentOrder) {
       setCourierDialogError('Buyurtma tanlanmagan');
@@ -538,7 +586,7 @@ const AdminOrdersDashboard = () => {
         const response = await axios.post(
           endpoint,
           { courier_id: parseInt(newCourierId) },
-          { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
+          { headers: { Authorization: `Token ${token}` } }
         );
         console.log('handleUpdateCourier: Muvaffaqiyatli:', response.status);
       } else {
@@ -548,7 +596,7 @@ const AdminOrdersDashboard = () => {
         const response = await axios.post(
           endpoint,
           {},
-          { headers: { Authorization: `Token ${token}` } } // Bearer o'rniga Token
+          { headers: { Authorization: `Token ${token}` } }
         );
         console.log('handleUpdateCourier (remove): Muvaffaqiyatli:', response.status);
       }
@@ -576,15 +624,241 @@ const AdminOrdersDashboard = () => {
     }
   };
 
-  // Boshlang‘ich yuklash va interval
+  // Buyurtma chekini chop etish funksiyasi
+  const handlePrintReceipt = (order) => {
+    const totalAmount = order.items?.reduce((sum, item) => {
+      const price = parseFloat(item.kitchen_price || item.price || 0);
+      return isNaN(price) || !item.quantity ? sum : sum + item.quantity * price;
+    }, 0) || 0;
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Buyurtma Cheki #${order.id}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              max-width: 300px;
+              font-size: 14px;
+              line-height: 1.4;
+            }
+            .receipt {
+              border: 1px solid #000;
+              padding: 15px;
+              border-radius: 5px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px dashed #000;
+              padding-bottom: 10px;
+              margin-bottom: 10px;
+            }
+            .item {
+              display: flex;
+              justify-content: space-between;
+              margin: 5px 0;
+            }
+            .total {
+              border-top: 2px dashed #000;
+              padding-top: 10px;
+              font-weight: bold;
+            }
+            .info {
+              margin: 10px 0;
+            }
+            @media print {
+              body {
+                margin: 0;
+              }
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <div class="header">
+              <h2>Buyurtma Cheki</h2>
+              <p>Buyurtma ID: #${order.id}</p>
+              <p>Restoran: ${order.kitchen?.name || 'Mavjud emas'}</p>
+              <p>Sana: ${order.created_at ? new Date(order.created_at).toLocaleString('uz-UZ') : 'Mavjud emas'}</p>
+            </div>
+            <div class="info">
+              <p><strong>Mijoz:</strong> ${order.user || 'Noma‘lum'}</p>
+              <p><strong>Telefon:</strong> ${order.contact_number || 'Mavjud emas'}</p>
+              <p><strong>To‘lov:</strong> ${order.payment === 'naqd' ? 'Naqd' : order.payment === 'karta' ? 'Karta' : 'Noma‘lum'}</p>
+              <p><strong>Oshxona vaqti:</strong> ${formatTime(order.kitchen_time)}</p>
+              ${order.courier ? `
+                <p><strong>Kuryer:</strong> ${order.courier.user?.username || 'Noma‘lum'}</p>
+                <p><strong>Kuryer telefoni:</strong> ${order.courier.phone_number || 'Mavjud emas'}</p>
+              ` : ''}
+              ${order.notes ? `<p><strong>Eslatmalar:</strong> ${order.notes}</p>` : ''}
+            </div>
+            <h3>Mahsulotlar:</h3>
+            ${order.items?.map(item => `
+              <div class="item">
+                <span>${item.product?.title || 'Noma‘lum Mahsulot'} (${item.quantity || 0}x)</span>
+                <span>${((item.quantity || 0) * parseFloat(item.kitchen_price || item.price || 0)).toLocaleString('uz-UZ')} so‘m</span>
+              </div>
+            `).join('') || '<p>Mahsulotlar mavjud emas</p>'}
+            <div class="total">
+              <span>Jami:</span>
+              <span>${totalAmount.toLocaleString('uz-UZ')} so‘m</span>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Kunlik savdo hisobotini jadval ko‘rinishida chop etish funksiyasi
+  const handlePrintDailySalesReport = () => {
+    const startDateFormatted = startDate ? new Date(startDate).toLocaleDateString('uz-UZ') : 'Noma‘lum';
+    const endDateFormatted = endDate ? new Date(endDate).toLocaleDateString('uz-UZ') : 'Noma‘lum';
+    const { completedOrders, totalSales, commission } = calculateDailySales(orders, startDate, endDate);
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Kunlik Savdo Hisoboti - ${startDateFormatted} dan ${endDateFormatted} gacha</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              max-width: 800px;
+              font-size: 14px;
+              line-height: 1.4;
+            }
+            .report {
+              border: 1px solid #000;
+              padding: 20px;
+              border-radius: 5px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px dashed #000;
+              padding-bottom: 10px;
+              margin-bottom: 20px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 8px;
+              text-align: left;
+            }
+            th {
+              background-color: #f2f2f2;
+              font-weight: bold;
+            }
+            .total, .commission {
+              border-top: 2px dashed #000;
+              padding-top: 10px;
+              font-weight: bold;
+              font-size: 16px;
+              margin-top: 20px;
+            }
+            .items {
+              margin-left: 20px;
+            }
+            @media print {
+              body {
+                margin: 0;
+              }
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report">
+            <div class="header">
+              <h2>Kunlik Savdo Hisoboti</h2>
+              <p>Sana oralig‘i: ${startDateFormatted} - ${endDateFormatted}</p>
+              <p>Jami buyurtmalar: ${completedOrders.length}</p>
+              <p>Jami savdo (oshxona narxlari): ${totalSales.toLocaleString('uz-UZ')} so‘m</p>
+              <p>10% Komissiya: ${commission.toLocaleString('uz-UZ')} so‘m</p>
+            </div>
+            ${completedOrders.length === 0 ? `<p>${startDateFormatted} dan ${endDateFormatted} gacha tugallangan buyurtmalar mavjud emas</p>` : `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Buyurtma ID</th>
+                    <th>Restoran</th>
+                    <th>Mijoz</th>
+                    <th>Mahsulotlar</th>
+                    <th>Jami (so‘m)</th>
+                    <th>To‘lov</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${completedOrders.map(order => `
+                    <tr>
+                      <td>#${order.id}</td>
+                      <td>${order.kitchen?.name || 'Mavjud emas'}</td>
+                      <td>${order.user || 'Noma‘lum'}</td>
+                      <td class="items">
+                        ${order.items?.map(item => `
+                          ${item.product?.title || 'Noma‘lum Mahsulot'} (${item.quantity || 0}x, ${(parseFloat(item.kitchen_price || item.price || 0)).toLocaleString('uz-UZ')} so‘m)
+                        `).join('<br>') || 'Mahsulotlar mavjud emas'}
+                      </td>
+                      <td>${(order.items?.reduce((sum, item) => {
+                        const price = parseFloat(item.kitchen_price || item.price || 0);
+                        return isNaN(price) || !item.quantity ? sum : sum + item.quantity * price;
+                      }, 0) || 0).toLocaleString('uz-UZ')}</td>
+                      <td>${order.payment === 'naqd' ? 'Naqd' : order.payment === 'karta' ? 'Karta' : 'Noma‘lum'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div class="total">
+                <span>Umumiy savdo (oshxona narxlari):</span>
+                <span>${totalSales.toLocaleString('uz-UZ')} so‘m</span>
+              </div>
+              <div class="commission">
+                <span>10% Komissiya:</span>
+                <span>${commission.toLocaleString('uz-UZ')} so‘m</span>
+              </div>
+            `}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   useEffect(() => {
     fetchOrders();
     fetchCouriers();
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
-  }, [token, isAuthenticated]); // token va isAuthenticated o'zgarishlariga bog'liq
+  }, [token, isAuthenticated]);
 
-  // Holat chipini olish
   const getStatusChip = (status) => {
     const statusMap = {
       'buyurtma_tushdi': { label: 'Yangi', color: 'primary', icon: <AccessTime /> },
@@ -606,7 +880,6 @@ const AdminOrdersDashboard = () => {
     );
   };
 
-  // Vaqtni formatlash
   const formatTime = (kitchenTime) => {
     if (!kitchenTime) return 'Belgilanmagan';
     if (typeof kitchenTime === 'string' && kitchenTime.includes(':')) {
@@ -618,18 +891,49 @@ const AdminOrdersDashboard = () => {
     return `${hours > 0 ? `${hours} soat` : ''} ${mins > 0 ? `${mins} minut` : ''}`.trim();
   };
 
-  // Buyurtmalarni filtrlash
   const filteredOrders = orders.filter(order =>
-    order.id.toString().includes(searchQuery) ||
-    order.user?.toLowerCase().includes(searchQuery.toLowerCase())
+    order && (
+      (order.id?.toString() || '').includes(searchQuery) ||
+      (order.user?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+    )
   );
 
-  const newOrders = filteredOrders.filter(o => ['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(o.status));
-  const acceptedOrders = filteredOrders.filter(o => o.status === 'kuryer_oldi');
-  const inDeliveryOrders = filteredOrders.filter(o => o.status === 'kuryer_yolda');
-  const completedOrders = filteredOrders.filter(o => o.status === 'buyurtma_topshirildi');
+  const sortedFilteredOrders = [...filteredOrders].sort((a, b) => {
+    let valA = a[sortBy];
+    let valB = b[sortBy];
+    if (sortBy === 'created_at') {
+      valA = new Date(valA);
+      valB = new Date(valB);
+    }
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
 
-  // Yuklanish holati
+  const newOrders = sortedFilteredOrders.filter(o => o && ['buyurtma_tushdi', 'oshxona_vaqt_belgiladi'].includes(o.status));
+  const acceptedOrders = sortedFilteredOrders.filter(o => o && o.status === 'kuryer_oldi');
+  const inDeliveryOrders = sortedFilteredOrders.filter(o => o && o.status === 'kuryer_yolda');
+  const completedOrders = sortedFilteredOrders.filter(o => o && o.status === 'buyurtma_topshirildi' &&
+    (!startDate || !endDate || (
+      new Date(o.created_at).toISOString().split('T')[0] >= new Date(startDate).toISOString().split('T')[0] &&
+      new Date(o.created_at).toISOString().split('T')[0] <= new Date(endDate).toISOString().split('T')[0]
+    )));
+
+  const getTabOrders = () => [newOrders, acceptedOrders, inDeliveryOrders, completedOrders, sortedFilteredOrders];
+
+  const toggleOrderExpand = (orderId) => {
+    setExpandedOrder(expandedOrder === orderId ? null : orderId);
+  };
+
+  const handleSortChange = (newSortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc');
+    }
+  };
+
   if (loading && orders.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -638,7 +942,6 @@ const AdminOrdersDashboard = () => {
     );
   }
 
-  // Xato holati
   if (error) {
     return (
       <Alert severity="error" sx={{ m: 3, borderRadius: 2 }}>
@@ -651,7 +954,6 @@ const AdminOrdersDashboard = () => {
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ p: isMobile ? 2 : 4, bgcolor: 'background.default', minHeight: '100vh' }}>
-        {/* Sarlavha */}
         <Stack direction={isMobile ? 'column' : 'row'} justifyContent="space-between" alignItems="center" mb={4}>
           <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight="bold" color="primary.main">
             Buyurtmalar Boshqaruvi
@@ -689,19 +991,63 @@ const AdminOrdersDashboard = () => {
             >
               Yangilash
             </Button>
+            <Button
+              variant="contained"
+              startIcon={<Print />}
+              onClick={handlePrintDailySalesReport}
+              sx={{ bgcolor: 'info.main', '&:hover': { bgcolor: 'info.dark' } }}
+            >
+              Hisobot Chop Etish
+            </Button>
           </Stack>
         </Stack>
 
-        {/* Umumiy statistika */}
+        <Stack direction={isMobile ? 'column' : 'row'} spacing={2} mb={3} alignItems="center">
+          <TextField
+            label="Boshlang‘ich Sana"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: isMobile ? '100%' : 200 }}
+          />
+          <TextField
+            label="Oxirgi Sana"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: isMobile ? '100%' : 200 }}
+          />
+          <Button
+            variant="contained"
+            startIcon={filterLoading ? <CircularProgress size={20} color="inherit" /> : <Search />}
+            onClick={handleApplyDateFilter}
+            disabled={filterLoading || !startDate || !endDate}
+          >
+            Filtrlash
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<RestartAlt />}
+            onClick={handleResetDateFilter}
+            disabled={filterLoading || (startDate === new Date().toISOString().split('T')[0] && endDate === new Date().toISOString().split('T')[0])}
+          >
+            Qayta tiklash
+          </Button>
+        </Stack>
+
         <Grid container spacing={isMobile ? 2 : 3} mb={4}>
           {[
             { title: 'Jami Buyurtmalar', value: orders.length, color: 'text.primary' },
             { title: 'Yangi Buyurtmalar', value: newOrders.length, color: 'primary.main' },
             { title: 'Qabul qilingan', value: acceptedOrders.length, color: 'secondary.main' },
             { title: 'Yetkazilmoqda', value: inDeliveryOrders.length, color: 'warning.main' },
-            { title: 'Bajarilgan', value: completedOrders.length, color: 'success.main' }
+            { title: 'Bajarilgan', value: completedOrders.length, color: 'success.main' },
+            { title: 'Savdo (Oshxona Narxlari)', value: `${dailySales.toLocaleString('uz-UZ')} so‘m`, color: 'info.main' },
+            { title: '10% Komissiya', value: `${dailySalesCommission.toLocaleString('uz-UZ')} so‘m`, color: 'success.main' }
           ].map((item, index) => (
-            <Grid item xs={12} sm={6} md={2.4} key={index}>
+            <Grid item xs={12} sm={6} md={2} key={index}>
               <Paper
                 sx={{
                   p: 2,
@@ -719,7 +1065,6 @@ const AdminOrdersDashboard = () => {
           ))}
         </Grid>
 
-        {/* Tablar */}
         <Tabs
           value={activeTab}
           onChange={(e, newValue) => setActiveTab(newValue)}
@@ -734,20 +1079,13 @@ const AdminOrdersDashboard = () => {
           <Tab label={`Barchasi (${orders.length})`} />
         </Tabs>
 
-        {/* Barchasini tanlash va ommaviy o'chirish */}
         <Stack direction="row" spacing={2} alignItems="center" mb={2}>
           <FormControlLabelCheckbox
             control={
               <Checkbox
                 checked={selectAll}
                 onChange={handleSelectAll}
-                indeterminate={ordersToDelete.length > 0 && ordersToDelete.length < [
-                  newOrders,
-                  acceptedOrders,
-                  inDeliveryOrders,
-                  completedOrders,
-                  filteredOrders
-                ][activeTab].length}
+                indeterminate={ordersToDelete.length > 0 && ordersToDelete.length < getTabOrders()[activeTab].length}
               />
             }
             label="Barchasini tanlash"
@@ -759,19 +1097,25 @@ const AdminOrdersDashboard = () => {
             onClick={() => openDeleteDialog()}
             disabled={ordersToDelete.length === 0}
           >
-            Tanlanganlarni o‘chirish ({ordersToDelete.length})
+            Tanlanganlarni o‘chirish (${ordersToDelete.length})
           </Button>
+          <Select
+            value={sortBy}
+            onChange={(e) => handleSortChange(e.target.value)}
+            size="small"
+            label="Saralash"
+          >
+            <MenuItem value="id">ID bo'yicha</MenuItem>
+            <MenuItem value="created_at">Sana bo'yicha</MenuItem>
+            <MenuItem value="status">Holati bo'yicha</MenuItem>
+          </Select>
+          <IconButton onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+            {sortOrder === 'asc' ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
         </Stack>
 
-        {/* Buyurtmalar ro‘yxati */}
         <Box>
-          {[
-            newOrders,
-            acceptedOrders,
-            inDeliveryOrders,
-            completedOrders,
-            filteredOrders
-          ][activeTab].length === 0 ? (
+          {getTabOrders()[activeTab].length === 0 ? (
             <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 3 }}>
               <Typography variant="body1" color="text.secondary">
                 Ushbu bo‘limda buyurtmalar mavjud emas
@@ -779,13 +1123,7 @@ const AdminOrdersDashboard = () => {
             </Paper>
           ) : (
             <Grid container spacing={isMobile ? 2 : 3}>
-              {[
-                newOrders,
-                acceptedOrders,
-                inDeliveryOrders,
-                completedOrders,
-                filteredOrders
-              ][activeTab].map(order => (
+              {getTabOrders()[activeTab].map(order => (
                 <Grid item xs={12} key={order.id}>
                   <Card
                     sx={{
@@ -821,7 +1159,7 @@ const AdminOrdersDashboard = () => {
                           Restoran: {order.kitchen?.name || 'Mavjud emas'}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Mijoz: {order.user}
+                          Mijoz: {order.user || 'Noma‘lum'}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Oshxona vaqti: {formatTime(order.kitchen_time)}
@@ -870,6 +1208,15 @@ const AdminOrdersDashboard = () => {
                         >
                           Buyurtmani o‘chirish
                         </Button>
+                        <Button
+                          variant="contained"
+                          color="info"
+                          size="small"
+                          startIcon={<Print />}
+                          onClick={() => handlePrintReceipt(order)}
+                        >
+                          Chek chop etish
+                        </Button>
                       </Stack>
                       <Collapse in={expandedOrder === order.id}>
                         <Box sx={{ mt: 3 }}>
@@ -887,7 +1234,7 @@ const AdminOrdersDashboard = () => {
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Payment fontSize="small" color="action" />
                                   <Typography variant="body2">
-                                    To‘lov: {order.payment === 'naqd' ? 'Naqd' : 'Karta'}
+                                    To‘lov: {order.payment === 'naqd' ? 'Naqd' : order.payment === 'karta' ? 'Karta' : 'Noma‘lum'}
                                   </Typography>
                                 </Stack>
                                 {order.notes && (
@@ -947,10 +1294,10 @@ const AdminOrdersDashboard = () => {
                                     </ListItemAvatar>
                                     <ListItemText
                                       primary={item.product?.title || 'Noma‘lum Mahsulot'}
-                                      secondary={`${item.quantity} × ${item.price} so‘m`}
+                                      secondary={`${item.quantity || 0} × ${(parseFloat(item.kitchen_price || item.price || 0)).toLocaleString('uz-UZ')} so‘m`}
                                     />
                                     <Typography variant="body2" fontWeight="bold">
-                                      {(item.quantity * parseFloat(item.price)).toLocaleString('uz-UZ')} so‘m
+                                      {((item.quantity || 0) * parseFloat(item.kitchen_price || item.price || 0)).toLocaleString('uz-UZ')} so‘m
                                     </Typography>
                                   </ListItem>
                                 )) || <Typography variant="body2">Mahsulotlar mavjud emas</Typography>}
@@ -967,7 +1314,6 @@ const AdminOrdersDashboard = () => {
           )}
         </Box>
 
-        {/* Oshxona vaqti dialogi */}
         <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
             Oshxona Vaqtini Belgilash
@@ -1007,7 +1353,6 @@ const AdminOrdersDashboard = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Kuryer qo‘shish/almashtirish dialogi */}
         <Dialog open={editCourierDialogOpen} onClose={() => setEditCourierDialogOpen(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white' }}>
             {currentOrder?.courier ? 'Kuryer Almashtirish' : 'Kuryer Qo‘shish'}
@@ -1029,7 +1374,7 @@ const AdminOrdersDashboard = () => {
                     .filter(courier => courier.is_active)
                     .map(courier => (
                       <MenuItem key={courier.id} value={courier.id}>
-                        {courier.user.username} (ID: {courier.id}, Tel: {courier.phone_number || 'N/A'})
+                        {courier.user?.username || 'Noma‘lum'} (ID: {courier.id}, Tel: {courier.phone_number || 'N/A'})
                       </MenuItem>
                     ))}
                 </TextField>
@@ -1058,7 +1403,6 @@ const AdminOrdersDashboard = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Buyurtma o'chirish dialogi */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{ bgcolor: 'error.main', color: 'white' }}>
             Buyurtmani O‘chirish
@@ -1085,14 +1429,12 @@ const AdminOrdersDashboard = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Global muvaffaqiyat xabari */}
         {successMessage && !editCourierDialogOpen && (
           <Alert severity="success" sx={{ m: 2 }}>
             {successMessage}
           </Alert>
         )}
 
-        {/* Oxirgi yangilanish vaqti */}
         {lastFetch && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block', textAlign: 'center' }}>
             Oxirgi yangilanish: {new Date(lastFetch).toLocaleString('uz-UZ')}
@@ -1101,10 +1443,6 @@ const AdminOrdersDashboard = () => {
       </Box>
     </ThemeProvider>
   );
-
-  function toggleOrderExpand(orderId) {
-    setExpandedOrder(expandedOrder === orderId ? null : orderId);
-  }
 };
 
 export default AdminOrdersDashboard;

@@ -46,7 +46,7 @@ const ProductsTable = () => {
 
   const axiosInstance = axios.create({
     baseURL: API_URL,
-    headers: { Authorization: token ? `Bearer ${token}` : '', 'Content-Type': 'application/json' },
+    headers: { Authorization: token ? `Token ${token}` : '', 'Content-Type': 'application/json' },
   });
 
   const fetchProducts = useCallback(async () => {

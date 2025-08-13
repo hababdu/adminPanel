@@ -1,98 +1,167 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
-  Box,
-  Container,
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
-  Typography,
-  Chip,
-  CircularProgress,
-  Alert,
-  Button,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
-  Snackbar,
-  useMediaQuery,
-  useTheme,
-  InputAdornment,
+  Box, Container, Grid, Card, CardContent, CardMedia, Typography, Chip, CircularProgress, Alert,
+  Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
+  FormControl, InputLabel, Select, Snackbar, useMediaQuery, useTheme, InputAdornment, Tooltip,
+  Table, TableBody, TableCell, TableContainer, FormControlLabel, TableHead, TableRow, Paper, Checkbox,
+  Badge, Avatar, Rating, Pagination
 } from '@mui/material';
 import {
-  Fastfood as FastfoodIcon,
-  LocalDining as KitchenIcon,
-  Category as CategoryIcon,
-  AttachMoney as PriceIcon,
-  Discount as DiscountIcon,
-  Star as StarIcon,
-  StarBorder as StarEmptyIcon,
-  Refresh as RefreshIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Save as SaveIcon,
-  Add as AddIcon,
-  Search as SearchIcon,
-  Image as ImageIcon,
-  CloudUpload as CloudUploadIcon,
-  Close as CloseIcon,
-  Info as InfoIcon,
-  Scale as ScaleIcon,
+  Fastfood as FastfoodIcon, LocalDining as KitchenIcon, Category as CategoryIcon,
+  AttachMoney as PriceIcon, Discount as DiscountIcon, Refresh as RefreshIcon, Edit as EditIcon,
+  Delete as DeleteIcon, Save as SaveIcon, Add as AddIcon, Search as SearchIcon, CloudUpload as CloudUploadIcon,
+  Close as CloseIcon, ViewList as ViewListIcon, ViewModule as ViewModuleIcon, Brightness4 as Brightness4Icon,
+  Brightness7 as Brightness7Icon, GetApp as GetAppIcon, ShoppingCart as CartIcon, Favorite as FavoriteIcon,
+  Share as ShareIcon, FilterAlt as FilterIcon
 } from '@mui/icons-material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { debounce } from 'lodash';
+import { saveAs } from 'file-saver';
+import { useDropzone } from 'react-dropzone';
 
-const theme = createTheme({
+// Error Boundary komponenti
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh' }}>
+          <Alert severity="error">
+            <Typography>Xatolik yuz berdi: {this.state.error?.message || 'Noma\'lum xato'}</Typography>
+            <Button onClick={() => window.location.reload()} color="inherit">Sahifani yangilash</Button>
+          </Alert>
+        </Box>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Custom Theme
+const createCustomTheme = (mode) => createTheme({
   palette: {
+    mode,
     primary: { main: '#3366ff' },
     secondary: { main: '#ff3d71' },
     success: { main: '#00d68f' },
-    background: { default: '#f7f9fc' },
+    warning: { main: '#ffaa00' },
+    background: {
+      default: mode === 'light' ? '#f7f9fc' : '#121212',
+      paper: mode === 'light' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(30, 30, 30, 0.9)'
+    },
+    text: {
+      primary: mode === 'light' ? '#333' : '#fff',
+      secondary: mode === 'light' ? '#666' : '#bbb'
+    }
   },
   typography: {
-    fontFamily: '"Inter", sans-serif',
+    fontFamily: '"Inter", "Roboto", sans-serif',
     h4: { fontWeight: 700, fontSize: '1.75rem' },
     h5: { fontWeight: 600, fontSize: '1.25rem' },
+    body2: { fontSize: '0.85rem' }
   },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          backdropFilter: 'blur(10px)',
+          background: mode === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(30, 30, 30, 0.7)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          transition: 'transform 0.3s, box-shadow 0.3s',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)'
+          },
+          maxWidth: '100%',
+          margin: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%'
+        }
+      }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: 'none',
+          fontWeight: 600,
+          transition: 'all 0.3s',
+          padding: '8px 16px'
+        }
+      }
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          height: 'auto',
+          padding: '2px 6px'
+        }
+      }
+    }
+  }
 });
 
 const ProductsList = () => {
   const themeContext = useTheme();
   const isMobile = useMediaQuery(themeContext.breakpoints.down('sm'));
   const isTablet = useMediaQuery(themeContext.breakpoints.between('sm', 'md'));
-
+  const [themeMode, setThemeMode] = useState('light');
+  const theme = useMemo(() => createCustomTheme(themeMode), [themeMode]);
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [productToDelete, setProductToDelete] = useState(null);
+  const [productsToDelete, setProductsToDelete] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [filters, setFilters] = useState({ category: null, subcategory: null });
+  const [filters, setFilters] = useState({
+    categories: [],
+    subcategories: [],
+    kitchens: [],
+    priceRange: [0, 100000],
+    hasDiscount: false
+  });
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [kitchens, setKitchens] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
-  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/products/';
+  const [viewMode, setViewMode] = useState('cards');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [favorites, setFavorites] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 12;
+  const observer = useRef();
   const token = localStorage.getItem('token');
 
+  const API_URL = 'https://hosilbek02.pythonanywhere.com/api/user/products/';
   const axiosInstance = axios.create({
     baseURL: API_URL,
-    headers: { Authorization: token ? `Token ${token}` : '', 'Content-Type': 'application/json' },
+    headers: { Authorization: token ? `Token ${token}` : '', 'Content-Type': 'application/json' }
   });
 
-  const fetchProducts = useCallback(async () => {
+  const calculateGridColumns = () => {
+    if (isMobile) return 1;
+    if (isTablet) return 2;
+    return 4;
+  };
+
+  const fetchProducts = useCallback(async (pageNum = 1, append = false) => {
     if (!token) {
       setError('Foydalanuvchi tizimga kirmagan');
       setLoading(false);
@@ -101,14 +170,37 @@ const ProductsList = () => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await axiosInstance.get('');
-      setProducts(Array.isArray(data) ? data : []);
+      const params = {
+        page: pageNum,
+        limit: productsPerPage,
+        search: searchQuery || undefined,
+        category: filters.categories.length > 0 ? filters.categories.join(',') : undefined,
+        subcategory: filters.subcategories.length > 0 ? filters.subcategories.join(',') : undefined,
+        kitchen: filters.kitchens.length > 0 ? filters.kitchens.join(',') : undefined,
+        min_price: filters.priceRange[0] || undefined,
+        max_price: filters.priceRange[1] || undefined,
+        has_discount: filters.hasDiscount ? 'true' : undefined
+      };
+      const { data } = await axiosInstance.get('', { params });
+      console.log('Fetch Products Response:', data);
+      let newProducts = [];
+      if (Array.isArray(data)) {
+        newProducts = data;
+        setHasMore(false);
+      } else if (data.results && Array.isArray(data.results)) {
+        newProducts = data.results;
+        setHasMore(!!data.next);
+      } else {
+        throw new Error('Unexpected API response format');
+      }
+      setProducts(prev => append ? [...prev, ...newProducts] : newProducts);
     } catch (err) {
+      console.error('Fetch Products Error:', err.response?.data || err.message);
       setError(err.response?.data?.message || 'Mahsulotlarni yuklab bo‘lmadi');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, searchQuery, filters]);
 
   const fetchInitialData = useCallback(async () => {
     if (!token) {
@@ -122,44 +214,96 @@ const ProductsList = () => {
       const [kitchensRes, categoriesRes, subcategoriesRes] = await Promise.all([
         axios.get('https://hosilbek02.pythonanywhere.com/api/user/kitchens/', { headers }),
         axios.get('https://hosilbek02.pythonanywhere.com/api/user/categories/', { headers }),
-        axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers }),
+        axios.get('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', { headers })
       ]);
       setKitchens(Array.isArray(kitchensRes.data) ? kitchensRes.data : []);
       setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
       setSubcategories(Array.isArray(subcategoriesRes.data) ? subcategoriesRes.data : []);
+      console.log('Initial Data:', { kitchens: kitchensRes.data, categories: categoriesRes.data, subcategories: subcategoriesRes.data });
     } catch (err) {
+      console.error('Fetch Initial Data Error:', err.response?.data || err.message);
       setError(err.response?.data?.message || 'Ma\'lumotlarni yuklab bo‘lmadi');
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  const filterProducts = useCallback((query, category, subcategory) => {
-    let filtered = products;
+  const filterProducts = useCallback((products, query, filters) => {
+    let filtered = [...products];
+    
     if (query) {
-      filtered = filtered.filter((product) =>
+      filtered = filtered.filter(product =>
         [product.title, product.description, product.kitchen?.name, product.category?.name, product.subcategory?.name]
-          .some((field) => field?.toLowerCase().includes(query))
+          .filter(field => field)
+          .some(field => field.toLowerCase().includes(query.toLowerCase()))
       );
     }
-    if (category) filtered = filtered.filter((p) => p.category?.id === category);
-    if (subcategory) filtered = filtered.filter((p) => p.subcategory?.id === subcategory);
+    
+    if (filters.categories.length > 0) {
+      filtered = filtered.filter(p => p.category && filters.categories.includes(p.category.id));
+    }
+    
+    if (filters.subcategories.length > 0) {
+      filtered = filtered.filter(p => p.subcategory && filters.subcategories.includes(p.subcategory.id));
+    }
+    
+    if (filters.kitchens.length > 0) {
+      filtered = filtered.filter(p => p.kitchen && filters.kitchens.includes(p.kitchen.id));
+    }
+    
+    filtered = filtered.filter(p => {
+      const price = parseFloat(p.price || 0);
+      return price >= filters.priceRange[0] && price <= filters.priceRange[1];
+    });
+    
+    if (filters.hasDiscount) {
+      filtered = filtered.filter(p => parseFloat(p.discount || 0) > 0);
+    }
+    
     return filtered;
-  }, [products]);
+  }, []);
 
-  const categoriesList = useMemo(() => [...new Map(products.map((p) => [p.category?.id, p.category])).values()].filter(Boolean), [products]);
-  const subcategoriesList = useMemo(() => {
-    return filters.category
-      ? [...new Map(products.filter((p) => p.category?.id === filters.category).map((p) => [p.subcategory?.id, p.subcategory])).values()].filter(Boolean)
-      : [];
-  }, [products, filters.category]);
+  const filteredProducts = useMemo(() => 
+    filterProducts(products, searchQuery, filters), 
+    [products, searchQuery, filters, filterProducts]
+  );
 
-  const filteredProducts = useMemo(() => filterProducts(searchQuery.toLowerCase(), filters.category, filters.subcategory), [searchQuery, filters, filterProducts]);
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+
+  const debouncedSearch = useMemo(() => 
+    debounce((value) => setSearchQuery(value), 300), 
+    []
+  );
+
+  const lastProductElementRef = useCallback(node => {
+    if (loading || !hasMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        setPage(prev => prev + 1);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore]);
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts(1);
     fetchInitialData();
+    
+    const savedFavorites = localStorage.getItem('favorites');
+    const savedCart = localStorage.getItem('cart');
+    if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
+    if (savedCart) setCart(JSON.parse(savedCart));
   }, [fetchProducts, fetchInitialData]);
+
+  useEffect(() => {
+    if (page > 1) {
+      fetchProducts(page, true);
+    }
+  }, [page, fetchProducts]);
 
   useEffect(() => {
     return () => {
@@ -167,104 +311,148 @@ const ProductsList = () => {
     };
   }, [imagePreview]);
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'] },
+    maxSize: 5 * 1024 * 1024,
+    onDrop: acceptedFiles => {
+      const file = acceptedFiles[0];
+      if (file) {
+        if (imagePreview) URL.revokeObjectURL(imagePreview);
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+      }
+    },
+    onDropRejected: () => {
+      setSnackbar({ open: true, message: 'Faqat JPG yoki PNG, maks. 5MB', severity: 'error' });
+    }
+  });
+
   const handleEdit = useCallback((product) => {
     setEditingProduct({
       ...product,
-      kitchen_id: product.kitchen?.id || (kitchens[0]?.id || 1),
-      category_id: product.category?.id || (categories[0]?.id || 1),
-      subcategory_id: product.subcategory?.id || '',
+      kitchen_id: product.kitchen?.id || kitchens[0]?.id || '',
+      category_id: product.category?.id || categories[0]?.id || '',
+      subcategory_id: product.subcategory?.id || ''
     });
     setImageFile(null);
     setImagePreview(product.photo ? `https://hosilbek02.pythonanywhere.com${product.photo}` : null);
+    console.log('Editing Product:', product);
   }, [kitchens, categories]);
 
-  const handleImageChange = useCallback((e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setSnackbar({ open: true, message: 'Faqat JPG yoki PNG rasm formatlari qabul qilinadi', severity: 'error' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setSnackbar({ open: true, message: 'Rasm hajmi 5MB dan kichik bo‘lishi kerak', severity: 'error' });
-      return;
-    }
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  }, [imagePreview]);
-
-  const handleRemovePhoto = useCallback(() => {
-    setImageFile(null);
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(null);
-  }, [imagePreview]);
-
   const handleSaveEdit = useCallback(async () => {
-    if (!token) {
-      setSnackbar({ open: true, message: 'Foydalanuvchi tizimga kirmagan', severity: 'error' });
+    if (!editingProduct || !token) {
+      setSnackbar({ open: true, message: 'Foydalanuvchi tizimga kirmagan yoki mahsulot tanlanmagan', severity: 'error' });
       return;
     }
-    if (!editingProduct.title || !editingProduct.price || !editingProduct.unit) {
-      setSnackbar({ open: true, message: 'Iltimos, barcha majburiy maydonlarni to‘ldiring', severity: 'error' });
+    if (!editingProduct.title || !editingProduct.price || !editingProduct.unit || !editingProduct.kitchen_id || !editingProduct.category_id) {
+      setSnackbar({ open: true, message: 'Barcha majburiy maydonlarni to‘ldiring', severity: 'error' });
       return;
     }
-    if (isNaN(editingProduct.price) || parseFloat(editingProduct.price) <= 0) {
-      setSnackbar({ open: true, message: 'Narx musbat son bo‘lishi kerak', severity: 'error' });
-      return;
-    }
-
     const formData = new FormData();
     formData.append('title', editingProduct.title);
-    formData.append('description', editingProduct.description || '');
-    formData.append('price', parseFloat(editingProduct.price));
-    formData.append('discount', editingProduct.discount ? parseFloat(editingProduct.discount) : 0);
+    formData.append('price', parseFloat(editingProduct.price).toString());
     formData.append('unit', editingProduct.unit);
     formData.append('kitchen_id', editingProduct.kitchen_id);
     formData.append('category_id', editingProduct.category_id);
-    formData.append('subcategory_id', editingProduct.subcategory_id);
+    formData.append('subcategory_id', editingProduct.subcategory_id ? String(editingProduct.subcategory_id) : '');
+    if (editingProduct.description) formData.append('description', editingProduct.description);
+    if (editingProduct.discount && parseFloat(editingProduct.discount) > 0) {
+      formData.append('discount', parseFloat(editingProduct.discount).toString());
+    }
     if (imageFile) formData.append('photo', imageFile);
 
     try {
       setLoading(true);
+      console.log('FormData:', Object.fromEntries(formData));
       const url = editingProduct.id ? `${editingProduct.id}/` : '';
-      await axiosInstance[editingProduct.id ? 'put' : 'post'](url, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const response = await axiosInstance[editingProduct.id ? 'put' : 'post'](url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Token ${token}` }
+      });
+      console.log('Save Edit Response:', response.data);
       setSnackbar({ open: true, message: `Mahsulot ${editingProduct.id ? 'tahrirlandi' : 'qo‘shildi'}!`, severity: 'success' });
       setEditingProduct(null);
       setImageFile(null);
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImagePreview(null);
-      fetchProducts();
+      fetchProducts(1);
     } catch (err) {
-      const errorMessage = err.response?.status === 401
-        ? 'Tizimga qayta kirish kerak. Sessiya tugagan.'
-        : err.response?.status === 400
-        ? Object.values(err.response?.data || {}).flat().join(', ') || 'Ma\'lumotlar noto\'g\'ri'
-        : err.response?.data?.message || 'Amalni bajarishda xatolik';
-      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+      console.error('Save Edit Error:', err.response?.data || err.message);
+      setSnackbar({ open: true, message: err.response?.data?.message || 'Amalni bajarishda xatolik', severity: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [token, editingProduct, imageFile, imagePreview, fetchProducts]);
+  }, [editingProduct, imageFile, token, fetchProducts]);
 
-  const handleDelete = useCallback(async () => {
-    if (!token || !productToDelete) {
+  const handleBulkDelete = useCallback(async () => {
+    if (!token || productsToDelete.length === 0) {
       setSnackbar({ open: true, message: 'Foydalanuvchi tizimga kirmagan yoki mahsulot tanlanmagan', severity: 'error' });
       return;
     }
     try {
       setLoading(true);
-      await axiosInstance.delete(`${productToDelete.id}/`);
-      setSnackbar({ open: true, message: 'Mahsulot o‘chirildi!', severity: 'success' });
+      await Promise.all(productsToDelete.map(id => axiosInstance.delete(`${id}/`)));
+      setSnackbar({ open: true, message: `${productsToDelete.length} ta mahsulot o‘chirildi!`, severity: 'success' });
       setDeleteDialogOpen(false);
-      setProductToDelete(null);
-      fetchProducts();
+      setProductsToDelete([]);
+      fetchProducts(1);
     } catch (err) {
+      console.error('Bulk Delete Error:', err.response?.data || err.message);
       setSnackbar({ open: true, message: err.response?.data?.message || 'O‘chirishda xatolik', severity: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [token, productToDelete, fetchProducts]);
+  }, [token, productsToDelete, fetchProducts]);
+
+  const exportToCSV = useCallback(() => {
+    const headers = ['ID', 'Title', 'Kitchen', 'Category', 'Subcategory', 'Price', 'Discount', 'Unit', 'Rating'];
+    const csvRows = [
+      headers.join(','),
+      ...filteredProducts.map(product =>
+        [
+          product.id || '',
+          `"${product.title || ''}"`,
+          product.kitchen?.name || 'N/A',
+          product.category?.name || 'N/A',
+          product.subcategory?.name || 'N/A',
+          product.price || 0,
+          product.discount || 0,
+          product.unit || '',
+          product.rating || 0
+        ].join(',')
+      )
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `products_${new Date().toISOString()}.csv`);
+    setSnackbar({ open: true, message: 'Mahsulotlar CSV sifatida eksport qilindi', severity: 'success' });
+  }, [filteredProducts]);
+
+  const toggleFavorite = useCallback((productId) => {
+    setFavorites(prev => {
+      const newFavorites = prev.includes(productId) 
+        ? prev.filter(id => id !== productId) 
+        : [...prev, productId];
+      localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      return newFavorites;
+    });
+  }, []);
+
+  const addToCart = useCallback((product) => {
+    setCart(prev => {
+      const existingItem = prev.find(item => item.id === product.id);
+      let newCart;
+      
+      if (existingItem) {
+        newCart = prev.map(item =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      } else {
+        newCart = [...prev, { ...product, quantity: 1 }];
+      }
+      
+      localStorage.setItem('cart', JSON.stringify(newCart));
+      return newCart;
+    });
+    setSnackbar({ open: true, message: 'Mahsulot savatga qo‘shildi', severity: 'success' });
+  }, []);
 
   const handleAddCategory = useCallback(async () => {
     if (!newCategoryName.trim()) {
@@ -275,10 +463,11 @@ const ProductsList = () => {
       setLoading(true);
       const headers = { Authorization: `Token ${token}` };
       const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/categories/', { name: newCategoryName.trim() }, { headers });
-      setCategories((prev) => [...prev, response.data]);
+      setCategories(prev => [...prev, response.data]);
       setNewCategoryName('');
-      setSnackbar({ open: true, message: 'Kategoriya muvaffaqiyatli qo‘shildi!', severity: 'success' });
+      setSnackbar({ open: true, message: 'Kategoriya qo‘shildi!', severity: 'success' });
     } catch (err) {
+      console.error('Add Category Error:', err.response?.data || err.message);
       setSnackbar({ open: true, message: err.response?.data?.message || 'Kategoriya qo‘shishda xatolik', severity: 'error' });
     } finally {
       setLoading(false);
@@ -295,569 +484,811 @@ const ProductsList = () => {
       const headers = { Authorization: `Token ${token}` };
       const response = await axios.post('https://hosilbek02.pythonanywhere.com/api/user/subcategories/', {
         name: newSubcategoryName.trim(),
-        category_id: Number(editingProduct.category_id),
+        category_id: Number(editingProduct.category_id)
       }, { headers });
-      setSubcategories((prev) => [...prev, response.data]);
-      setEditingProduct((prev) => ({ ...prev, subcategory_id: response.data.id }));
+      setSubcategories(prev => [...prev, response.data]);
+      setEditingProduct(prev => ({ ...prev, subcategory_id: response.data.id }));
       setNewSubcategoryName('');
-      setSnackbar({ open: true, message: 'Subkategoriya muvaffaqiyatli qo‘shildi!', severity: 'success' });
+      setSnackbar({ open: true, message: 'Subkategoriya qo‘shildi!', severity: 'success' });
     } catch (err) {
+      console.error('Add Subcategory Error:', err.response?.data || err.message);
       setSnackbar({ open: true, message: err.response?.data?.message || 'Subkategoriya qo‘shishda xatolik', severity: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [token, newSubcategoryName, editingProduct?.category_id]);
+  }, [token, newSubcategoryName, editingProduct]);
 
-  const handleCloseSnackbar = useCallback(() => setSnackbar((prev) => ({ ...prev, open: false })), []);
+  const handleFilterChange = (name, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'categories' ? { subcategories: prev.subcategories.filter(id => {
+        const subcategory = subcategories.find(s => s.id === id);
+        return subcategory && value.includes(subcategory.category?.id);
+      })} : {})
+    }));
+  };
 
-  const getGridColumns = () => (isMobile ? 12 : isTablet ? 6 : 4);
+  const resetFilters = () => {
+    setFilters({
+      categories: [],
+      subcategories: [],
+      kitchens: [],
+      priceRange: [0, 100000],
+      hasDiscount: false
+    });
+    setFilterDialogOpen(false);
+  };
 
-  const renderRating = (rating = 0) => {
-    const stars = [];
-    const maxStars = 5;
-    const roundedRating = Math.round(rating * 2) / 2;
-    for (let i = 1; i <= maxStars; i++) {
-      stars.push(
-        i <= roundedRating ? (
-          <StarIcon key={i} color="primary" fontSize="small" />
-        ) : i - 0.5 === roundedRating ? (
-          <StarIcon key={i} color="primary" fontSize="small" style={{ opacity: 0.5 }} />
-        ) : (
-          <StarEmptyIcon key={i} color="primary" fontSize="small" />
-        )
+  const applyFilters = () => {
+    setCurrentPage(1);
+    setFilterDialogOpen(false);
+    fetchProducts(1);
+  };
+
+  const renderPrice = (price, discount) => {
+    if (discount > 0) {
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body1" fontWeight="bold" color="error">
+            {parseFloat(price - discount).toLocaleString()} so'm
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'line-through' }}>
+            {parseFloat(price).toLocaleString()} so'm
+          </Typography>
+          <Chip 
+            label={`${Math.round((discount / price) * 100)}%`} 
+            size="small" 
+            color="error"
+            sx={{ ml: 'auto' }}
+          />
+        </Box>
       );
     }
     return (
-      <Box display="flex" alignItems="center">
-        {stars}
-        <Typography variant="caption" color="text.secondary" ml={1}>
-          ({rating.toFixed(1)})
-        </Typography>
-      </Box>
+      <Typography variant="body1" fontWeight="bold">
+        {parseFloat(price).toLocaleString()} so'm
+      </Typography>
     );
   };
 
-  if (!token) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}><Alert severity="warning">Iltimos, tizimga kiring!</Alert></Box>;
-  if (loading && !editingProduct) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}><CircularProgress /><Typography ml={2}>Mahsulotlar yuklanmoqda...</Typography></Box>;
-  if (error) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}><Alert severity="error" action={<Button color="inherit" size="small" onClick={fetchProducts}>Qayta urinish</Button>}>{error}</Alert></Box>;
+  if (!token) {
+    return (
+      <ThemeProvider theme={theme}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh' }}>
+          <Alert severity="warning">
+            Iltimos, tizimga kiring!{' '}
+            <Button component="a" href="/login" color="inherit">Login</Button>
+          </Alert>
+        </Box>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-        <Box sx={{ bgcolor: 'primary.main', color: 'white', p: 2, display: 'flex', alignItems: 'center', gap: 2, boxShadow: 1 }}>
-          <Typography variant="h6" fontWeight="medium">Barcha mahsulotlar</Typography>
-        </Box>
-
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 2, '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: 'primary.light', borderRadius: 2 } }}>
-          <Container maxWidth="md" disableGutters>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}></Typography>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <TextField
-                  label="Mahsulotlarni qidirish"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: { xs: '150px', sm: '250px' } }}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<AddIcon />}
-                  onClick={() => setEditingProduct({
-                    title: '',
-                    description: '',
-                    kitchen_id: kitchens[0]?.id || '',
-                    category_id: categories[0]?.id || '',
-                    subcategory_id: '',
-                    price: '',
-                    discount: '0.00',
-                    unit: 'gram',
-                  })}
-                >
-                  Yangi mahsulot
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<RefreshIcon />}
-                  onClick={fetchProducts}
-                  disabled={loading}
-                >
-                  Yangilash
-                </Button>
-              </Box>
+      <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default', py: 4 }}>
+        <Container maxWidth="lg">
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+            <Typography variant="h4" fontWeight="bold" color="primary.main">
+              Mahsulotlar Boshqaruvi
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Qidirish"
+                size="small"
+                onChange={e => debouncedSearch(e.target.value)}
+                InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
+                sx={{ minWidth: 200 }}
+                aria-label="Mahsulotlarni qidirish"
+              />
+              <Tooltip title="Filtrlar">
+                <IconButton onClick={() => setFilterDialogOpen(true)}>
+                  <Badge badgeContent={Object.values(filters).flat().length + (filters.hasDiscount ? 1 : 0)} color="primary">
+                    <FilterIcon />
+                  </Badge>
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={viewMode === 'cards' ? 'Jadval ko‘rinishi' : 'Kartalar ko‘rinishi'}>
+                <IconButton onClick={() => setViewMode(prev => prev === 'cards' ? 'table' : 'cards')}>
+                  {viewMode === 'cards' ? <ViewListIcon /> : <ViewModuleIcon />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Mavzuni o‘zgartirish">
+                <IconButton onClick={() => setThemeMode(prev => prev === 'light' ? 'dark' : 'light')}>
+                  {themeMode === 'light' ? <Brightness4Icon /> : <Brightness7Icon />}
+                </IconButton>
+              </Tooltip>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setEditingProduct({
+                  title: '', description: '', kitchen_id: kitchens[0]?.id || '',
+                  category_id: categories[0]?.id || '', subcategory_id: '', price: '', discount: '0.00', unit: 'gram'
+                })}
+                aria-label="Yangi mahsulot qo‘shish"
+              >
+                Yangi
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<GetAppIcon />}
+                onClick={exportToCSV}
+                aria-label="CSV eksport"
+                disabled={filteredProducts.length === 0}
+              >
+                Eksport
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={() => fetchProducts(1)}
+                aria-label="Yangilash"
+                disabled={loading}
+              >
+                Yangilash
+              </Button>
             </Box>
+          </Box>
 
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>Kategoriyalar</Typography>
-              <Box sx={{ overflowX: 'auto', whiteSpace: 'nowrap', pb: 2 }}>
-                <Box component="ul" sx={{ display: 'flex', gap: 1 }}>
-                  <li>
-                    <Button
-                      variant={filters.category === null ? 'contained' : 'outlined'}
-                      color="primary"
-                      onClick={() => setFilters({ category: null, subcategory: null })}
-                      sx={{ minWidth: '100px' }}
-                    >
-                      Hammasi
-                    </Button>
-                  </li>
-                  {categoriesList.map((category) => (
-                    <li key={category.id}>
-                      <Button
-                        variant={filters.category === category.id ? 'contained' : 'outlined'}
-                        color="primary"
-                        onClick={() => setFilters((prev) => ({ ...prev, category: category.id, subcategory: null }))}
-                        sx={{ minWidth: '100px' }}
-                      >
-                        {category.name || 'Noma\'lum'}
-                      </Button>
-                    </li>
-                  ))}
-                </Box>
-              </Box>
-            </Box>
+          {error && (
+            <Alert severity="error" sx={{ mb: 4 }} action={
+              <Button color="inherit" onClick={() => fetchProducts(1)}>Qayta urinish</Button>
+            }>
+              {error}
+            </Alert>
+          )}
 
-            {filters.category && subcategoriesList.length > 0 && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>Subkategoriyalar</Typography>
-                <Box sx={{ overflowX: 'auto', whiteSpace: 'nowrap', pb: 2 }}>
-                  <Box component="ul" sx={{ display: 'flex', gap: 1 }}>
-                    <li>
-                      <Button
-                        variant={filters.subcategory === null ? 'contained' : 'outlined'}
-                        color="secondary"
-                        onClick={() => setFilters((prev) => ({ ...prev, subcategory: null }))}
-                        sx={{ minWidth: '100px' }}
-                      >
-                        Hammasi
-                      </Button>
-                    </li>
-                    {subcategoriesList.map((subcategory) => (
-                      <li key={subcategory.id}>
-                        <Button
-                          variant={filters.subcategory === subcategory.id ? 'contained' : 'outlined'}
-                          color="secondary"
-                          onClick={() => setFilters((prev) => ({ ...prev, subcategory: subcategory.id }))}
-                          sx={{ minWidth: '100px' }}
-                        >
-                          {subcategory.name || 'Noma\'lum'}
-                        </Button>
-                      </li>
-                    ))}
-                  </Box>
-                </Box>
-              </Box>
-            )}
-
-            {filteredProducts.length === 0 ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-                <Alert
-                  severity="info"
-                  action={!searchQuery && !filters.category && !filters.subcategory ? (
-                    <Button color="info" size="small" onClick={() => setEditingProduct({
-                      title: '',
-                      description: '',
-                      kitchen_id: kitchens[0]?.id || '',
-                      category_id: categories[0]?.id || '',
-                      subcategory_id: '',
-                      price: '',
-                      discount: '0.00',
-                      unit: 'gram',
-                    })}>
-                      Yangi mahsulot qo'shish
-                    </Button>
-                  ) : null}
+          {viewMode === 'cards' ? (
+            <Grid container spacing={3}>
+              {currentProducts.map((product, index) => (
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={4}
+                  lg={3}
+                  key={product.id || index}
+                  ref={index === currentProducts.length - 1 ? lastProductElementRef : null}
                 >
-                  {searchQuery || filters.category || filters.subcategory ? 'Qidiruv yoki filtr bo‘yicha mahsulotlar topilmadi.' : 'Mahsulotlar topilmadi. Birinchi mahsulotni qo‘shing.'}
-                </Alert>
-              </Box>
-            ) : (
-              <Grid container spacing={2}>
-                {filteredProducts.map((product) => (
-                  <Grid item xs={12} sm={6} md={4} lg={4} key={product.id || Math.random()} sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <Card
-                      sx={{
-                        width: '100%',
-                        maxWidth: 300,
-                        borderRadius: 2,
-                        border: !product.id ? '2px dashed' : '1px solid',
-                        borderColor: !product.id ? 'primary.main' : 'divider',
-                        backgroundColor: !product.id ? 'primary.light' + '22' : 'background.paper',
-                        transition: 'transform 0.2s',
-                        '&:hover': { transform: 'translateY(-4px)', boxShadow: 3 },
-                      }}
-                    >
-                      <Box sx={{ position: 'absolute', top: 2, right: 2, zIndex: 10 }}>
-                        <IconButton color="primary" onClick={() => handleEdit(product)} size="small" sx={{ bgcolor: 'white', '&:hover': { bgcolor: 'blue.50' }, mr: 0.5 }}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton color="error" onClick={() => { setProductToDelete(product); setDeleteDialogOpen(true); }} size="small" sx={{ bgcolor: 'white', '&:hover': { bgcolor: 'red.50' } }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                  <Card>
+                    <Box sx={{ position: 'relative' }}>
+                      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 1 }}>
+                        <Tooltip title="Sevimlilar">
+                          <IconButton
+                            color={favorites.includes(product.id) ? 'error' : 'default'}
+                            onClick={() => toggleFavorite(product.id)}
+                            sx={{ bgcolor: 'rgba(255,255,255,0.8)' }}
+                            size="small"
+                          >
+                            <FavoriteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Ulashish">
+                          <IconButton
+                            sx={{ bgcolor: 'rgba(255,255,255,0.8)' }}
+                            size="small"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/product/${product.id}`);
+                              setSnackbar({ open: true, message: 'Havola nusxalandi!', severity: 'success' });
+                            }}
+                          >
+                            <ShareIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
-                      {product.photo ? (
-                        <CardMedia component="img" height="120" image={`https://hosilbek02.pythonanywhere.com${product.photo}`} alt={product.title || 'Mahsulot'} sx={{ objectFit: 'cover', aspectRatio: '4/3' }} />
-                      ) : (
-                        <Box sx={{ height: 120, display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: 'grey.100', aspectRatio: '4/3' }}>
-                          <FastfoodIcon fontSize="medium" color="disabled" />
-                        </Box>
-                      )}
-                      <CardContent sx={{ flexGrow: 1, p: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
-                          <Typography variant="subtitle1" noWrap>{product.title || 'Yangi mahsulot'}</Typography>
-                          <Chip label={product.unit || 'Noma\'lum'} size="small" color={!product.id ? 'primary' : 'secondary'} variant={!product.id ? 'outlined' : 'filled'} />
-                        </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ lineClamp: 2, minHeight: '2.5em', mb: 1, fontSize: '0.85rem' }}>
-                          {product.description || 'Tavsif mavjud emas'}
+                      <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'flex', gap: 1 }}>
+                        <Tooltip title="Tahrirlash">
+                          <IconButton
+                            color="primary"
+                            onClick={() => handleEdit(product)}
+                            sx={{ bgcolor: 'rgba(255,255,255,0.8)' }}
+                            size="small"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="O‘chirish">
+                          <IconButton
+                            color="error"
+                            onClick={() => { setProductsToDelete([product.id]); setDeleteDialogOpen(true); }}
+                            sx={{ bgcolor: 'rgba(255,255,255,0.8)' }}
+                            size="small"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                      <CardMedia
+                        component="img"
+                        height="160"
+                        image={product.photo ? `https://hosilbek02.pythonanywhere.com${product.photo}` : 'https://via.placeholder.com/300'}
+                        alt={product.title || 'Mahsulot'}
+                        sx={{ objectFit: 'cover' }}
+                      />
+                    </Box>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Typography
+                          variant="h6"
+                          noWrap
+                          sx={{ fontSize: '0.95rem', fontWeight: 600 }}
+                        >
+                          {product.title || 'Noma\'lum'}
                         </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                          <Chip icon={<KitchenIcon fontSize="small" />} label={product.kitchen?.name || 'Noma\'lum'} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
-                          <Chip icon={<CategoryIcon fontSize="small" />} label={product.category?.name || 'Noma\'lum'} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
-                          {product.subcategory && <Chip label={product.subcategory.name || 'Noma\'lum'} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />}
-                        </Box>
-                        <Box sx={{ mb: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                            <PriceIcon color="primary" fontSize="small" sx={{ mr: 0.5 }} />
-                            <Typography variant="body2" sx={{ mr: 1, fontWeight: 'bold' }}>{parseFloat(product.price || 0).toLocaleString()} so'm</Typography>
-                          </Box>
-                          {parseFloat(product.discount) > 0 && (
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <DiscountIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
-                              <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>{parseFloat(product.discount).toLocaleString()} so'm</Typography>
-                            </Box>
+                        <Rating
+                          value={product.rating || 0}
+                          precision={0.5}
+                          readOnly
+                          size="small"
+                        />
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          mb: 1.5,
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        {product.description || 'Tavsif yo‘q'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5, flexWrap: 'wrap' }}>
+                        {product.kitchen && (
+                          <Chip
+                            icon={<KitchenIcon fontSize="small" />}
+                            label={product.kitchen.name}
+                            size="small"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )}
+                        {product.category && (
+                          <Chip
+                            icon={<CategoryIcon fontSize="small" />}
+                            label={product.category.name}
+                            size="small"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )}
+                        {product.subcategory && (
+                          <Chip
+                            label={product.subcategory.name}
+                            size="small"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
+                      {renderPrice(product.price, product.discount)}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                        <Chip
+                          label={product.unit}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<CartIcon fontSize="small" />}
+                          onClick={() => addToCart(product)}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          Savatga
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table aria-label="Mahsulotlar jadvali">
+                <TableHead>
+                  <TableRow>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={productsToDelete.length === filteredProducts.length && filteredProducts.length > 0}
+                        onChange={() => setProductsToDelete(
+                          productsToDelete.length === filteredProducts.length
+                            ? []
+                            : filteredProducts.map(p => p.id).filter(id => id)
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>Rasm</TableCell>
+                    <TableCell>Nomi</TableCell>
+                    <TableCell>Oshxona</TableCell>
+                    <TableCell>Kategoriya</TableCell>
+                    <TableCell>Narx</TableCell>
+                    <TableCell>Amallar</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {currentProducts.map((product, index) => (
+                    <TableRow
+                      key={product.id || index}
+                      ref={index === currentProducts.length - 1 ? lastProductElementRef : null}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={productsToDelete.includes(product.id)}
+                          onChange={() => setProductsToDelete(prev =>
+                            prev.includes(product.id) ? prev.filter(id => id !== product.id) : [...prev, product.id]
                           )}
-                        </Box>
-                        {product.discounted_price && (
-                          <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>
-                            Chegirmadagi narx: {parseFloat(product.discounted_price).toLocaleString()} so'm
+                          disabled={!product.id}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Avatar
+                          src={product.photo ? `https://hosilbek02.pythonanywhere.com${product.photo}` : 'https://via.placeholder.com/50'}
+                          alt={product.title || 'Mahsulot'}
+                          sx={{ width: 50, height: 50 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography fontWeight="medium">{product.title || 'Noma\'lum'}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {product.description?.substring(0, 50)}{product.description?.length > 50 ? '...' : ''}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{product.kitchen?.name || 'N/A'}</TableCell>
+                      <TableCell>
+                        {product.category?.name || 'N/A'}
+                        {product.subcategory && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {product.subcategory.name}
                           </Typography>
                         )}
-                        {renderRating(product.rating)}
-                        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {product.created_at ? new Date(product.created_at).toLocaleDateString() : 'Yangi'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">ID: {product.id || '—'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {renderPrice(product.price, product.discount)}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Savatga qo'shish">
+                            <IconButton color="primary" size="small" onClick={() => addToCart(product)}>
+                              <CartIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Tahrirlash">
+                            <IconButton color="primary" size="small" onClick={() => handleEdit(product)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="O‘chirish">
+                            <IconButton
+                              color="error"
+                              size="small"
+                              onClick={() => { setProductsToDelete([product.id]); setDeleteDialogOpen(true); }}
+                              disabled={!product.id}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
-          </Container>
-        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
 
-        <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            onClick={fetchProducts}
-            disabled={loading}
-            sx={{ py: 1.5, borderRadius: 2, fontWeight: 'medium', textTransform: 'none', fontSize: '1rem' }}
-          >
-            {loading ? <CircularProgress size={20} color="inherit" /> : 'Yangilash'}
-          </Button>
-        </Box>
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+              <CircularProgress />
+              <Typography ml={2}>Yuklanmoqda...</Typography>
+            </Box>
+          )}
 
-        <Dialog open={!!editingProduct} onClose={() => { setEditingProduct(null); setImageFile(null); if (imagePreview) URL.revokeObjectURL(imagePreview); setImagePreview(null); }} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
-            {editingProduct?.id ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo‘shish'}
-          </DialogTitle>
-          <DialogContent sx={{ py: 3 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Card sx={{ mb: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                  <CardContent sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}>
-                      <ImageIcon color="primary" sx={{ mr: 1 }} /> Mahsulot Rasmi
-                    </Typography>
-                    <Box
-                      sx={{
-                        height: 150,
-                        bgcolor: 'action.hover',
-                        borderRadius: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden',
-                        position: 'relative',
-                        border: '1px dashed',
-                        borderColor: 'divider',
-                        cursor: 'pointer',
-                        '&:hover': { borderColor: 'primary.main', bgcolor: 'action.selected' },
-                      }}
-                      onClick={() => document.getElementById('file-upload').click()}
+          {filteredProducts.length === 0 && !loading && !error && (
+            <Alert
+              severity="info"
+              sx={{ mt: 4 }}
+              action={
+                <Button
+                  color="inherit"
+                  onClick={() => setEditingProduct({
+                    title: '', description: '', kitchen_id: kitchens[0]?.id || '',
+                    category_id: categories[0]?.id || '', subcategory_id: '', price: '', discount: '0.00', unit: 'gram'
+                  })}
+                >
+                  Yangi qo‘shish
+                </Button>
+              }
+            >
+              {searchQuery || filters.categories.length > 0 || filters.subcategories.length > 0
+                ? 'Qidiruv yoki filtrlar bo‘yicha mahsulotlar topilmadi.'
+                : 'Mahsulotlar topilmadi. Yangi mahsulot qo‘shing.'}
+            </Alert>
+          )}
+
+          {filteredProducts.length > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={(event, value) => setCurrentPage(value)}
+                color="primary"
+                showFirstButton
+                showLastButton
+                siblingCount={1}
+                boundaryCount={1}
+              />
+            </Box>
+          )}
+
+          <Dialog open={!!editingProduct} onClose={() => { setEditingProduct(null); setImageFile(null); setImagePreview(null); }} maxWidth="sm" fullWidth>
+            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+              {editingProduct?.id ? 'Mahsulotni Tahrirlash' : 'Yangi Mahsulot Qo‘shish'}
+            </DialogTitle>
+            <DialogContent sx={{ py: 4 }}>
+              <Box {...getRootProps()} sx={{
+                height: 200,
+                border: '2px dashed',
+                borderColor: isDragActive ? 'primary.main' : 'divider',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: isDragActive ? 'action.selected' : 'action.hover',
+                cursor: 'pointer',
+                mb: 3
+              }}>
+                <input {...getInputProps()} />
+                {imagePreview ? (
+                  <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <IconButton
+                      onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}
+                      sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: 'white' }}
                     >
-                      {imagePreview ? (
-                        <>
-                          <img src={imagePreview} alt="Mahsulot rasmi" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          <IconButton
-                            onClick={(e) => { e.stopPropagation(); handleRemovePhoto(); }}
-                            size="small"
-                            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
-                          >
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
-                        </>
+                      <CloseIcon />
+                    </IconButton>
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
+                    <CloudUploadIcon sx={{ fontSize: 40, mb: 1 }} />
+                    <Typography>Rasmni bu yerga tashlang yoki bosing</Typography>
+                    <Typography variant="caption">PNG yoki JPEG, maks. 5MB</Typography>
+                  </Box>
+                )}
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Nomi"
+                    value={editingProduct?.title || ''}
+                    onChange={e => setEditingProduct(prev => ({ ...prev, title: e.target.value }))}
+                    required
+                    InputProps={{ startAdornment: <InputAdornment position="start"><FastfoodIcon /></InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Tavsif"
+                    value={editingProduct?.description || ''}
+                    onChange={e => setEditingProduct(prev => ({ ...prev, description: e.target.value }))}
+                    multiline
+                    rows={3}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Narx (so‘m)"
+                    type="number"
+                    value={editingProduct?.price || ''}
+                    onChange={e => setEditingProduct(prev => ({ ...prev, price: e.target.value }))}
+                    required
+                    InputProps={{ startAdornment: <InputAdornment position="start"><PriceIcon /></InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Chegirma (so‘m)"
+                    type="number"
+                    value={editingProduct?.discount || '0.00'}
+                    onChange={e => setEditingProduct(prev => ({ ...prev, discount: e.target.value }))}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><DiscountIcon /></InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>O‘lchov birligi</InputLabel>
+                    <Select
+                      value={editingProduct?.unit || 'gram'}
+                      onChange={e => setEditingProduct(prev => ({ ...prev, unit: e.target.value }))}
+                      label="O‘lchov birligi"
+                    >
+                      {['gram', 'liter', 'dona', 'kg', 'ml', 'portion'].map(unit => (
+                        <MenuItem key={unit} value={unit}>{unit}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Oshxona</InputLabel>
+                    <Select
+                      value={editingProduct?.kitchen_id || ''}
+                      onChange={e => setEditingProduct(prev => ({ ...prev, kitchen_id: e.target.value }))}
+                      label="Oshxona"
+                    >
+                      {Array.isArray(kitchens) && kitchens.length > 0 ? (
+                        kitchens.map(kitchen => (
+                          <MenuItem key={kitchen.id} value={kitchen.id}>{kitchen.name}</MenuItem>
+                        ))
                       ) : (
-                        <>
-                          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'text.secondary' }}>
-                            <CloudUploadIcon fontSize="medium" sx={{ mb: 1 }} />
-                            <Typography variant="body2" align="center">Rasm yuklash uchun bosing</Typography>
-                            <Typography variant="caption" align="center">PNG yoki JPEG, maks. 5MB</Typography>
-                          </Box>
-                        </>
+                        <MenuItem disabled>No kitchens available</MenuItem>
                       )}
-                      <input id="file-upload" type="file" accept="image/jpeg,image/png" hidden onChange={handleImageChange} />
-                    </Box>
-                  </CardContent>
-                </Card>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Kategoriya</InputLabel>
+                    <Select
+                      value={editingProduct?.category_id || ''}
+                      onChange={e => {
+                        const newCategoryId = e.target.value;
+                        setEditingProduct(prev => ({
+                          ...prev,
+                          category_id: newCategoryId,
+                          subcategory_id: ''
+                        }));
+                        console.log('Selected category_id:', newCategoryId);
+                      }}
+                      label="Kategoriya"
+                    >
+                      {Array.isArray(categories) && categories.length > 0 ? (
+                        categories.map(category => (
+                          <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>No categories available</MenuItem>
+                      )}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Subkategoriya</InputLabel>
+                    <Select
+                      value={editingProduct?.subcategory_id || ''}
+                      onChange={e => {
+                        const newSubcategoryId = e.target.value || '';
+                        setEditingProduct(prev => ({
+                          ...prev,
+                          subcategory_id: newSubcategoryId
+                        }));
+                        console.log('Selected subcategory_id:', newSubcategoryId);
+                      }}
+                      label="Subkategoriya"
+                      disabled={!editingProduct?.category_id}
+                    >
+                      {editingProduct?.category_id && Array.isArray(subcategories) ? (
+                        subcategories
+                          .filter(sub => sub.category?.id === Number(editingProduct.category_id))
+                          .map(subcategory => (
+                            <MenuItem key={subcategory.id} value={subcategory.id}>{subcategory.name}</MenuItem>
+                          ))
+                      ) : (
+                        <MenuItem disabled>Avval kategoriyani tanlang</MenuItem>
+                      )}
+                      {editingProduct?.category_id && subcategories.filter(sub => sub.category?.id === Number(editingProduct.category_id)).length === 0 && (
+                        <MenuItem disabled>No subcategories available</MenuItem>
+                      )}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      fullWidth
+                      label="Yangi kategoriya"
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                    />
+                    <Button
+                      variant="outlined"
+                      onClick={handleAddCategory}
+                      disabled={!newCategoryName.trim()}
+                    >
+                      <AddIcon />
+                    </Button>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      fullWidth
+                      label="Yangi subkategoriya"
+                      value={newSubcategoryName}
+                      onChange={e => setNewSubcategoryName(e.target.value)}
+                      disabled={!editingProduct?.category_id}
+                    />
+                    <Button
+                      variant="outlined"
+                      onClick={handleAddSubcategory}
+                      disabled={!newSubcategoryName.trim() || !editingProduct?.category_id}
+                    >
+                      <AddIcon />
+                    </Button>
+                  </Box>
+                </Grid>
               </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { setEditingProduct(null); setImageFile(null); setImagePreview(null); }} color="inherit">
+                Bekor qilish
+              </Button>
+              <Button onClick={handleSaveEdit} variant="contained" color="primary" startIcon={<SaveIcon />} disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : 'Saqlash'}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                  <CardContent sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}>
-                      <InfoIcon color="primary" sx={{ mr: 1 }} /> Asosiy Ma'lumotlar
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Mahsulot nomi"
-                          name="title"
-                          value={editingProduct?.title || ''}
-                          onChange={(e) => setEditingProduct((prev) => ({ ...prev, title: e.target.value }))}
-                          required
-                          InputProps={{ startAdornment: <InputAdornment position="start"><FastfoodIcon color="primary" fontSize="small" /></InputAdornment> }}
-                          sx={{ mb: 1 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Tavsif"
-                          name="description"
-                          value={editingProduct?.description || ''}
-                          onChange={(e) => setEditingProduct((prev) => ({ ...prev, description: e.target.value }))}
-                          multiline
-                          rows={3}
-                          sx={{ mb: 1 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Narx (so'm)"
-                          name="price"
-                          value={editingProduct?.price || ''}
-                          onChange={(e) => setEditingProduct((prev) => ({ ...prev, price: e.target.value }))}
-                          type="number"
-                          required
-                          InputProps={{ startAdornment: <InputAdornment position="start"><PriceIcon color="primary" fontSize="small" /></InputAdornment>, inputProps: { min: 0 } }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Chegirma (so'm)"
-                          name="discount"
-                          value={editingProduct?.discount || '0.00'}
-                          onChange={(e) => setEditingProduct((prev) => ({ ...prev, discount: e.target.value }))}
-                          type="number"
-                          InputProps={{ startAdornment: <InputAdornment position="start"><DiscountIcon color="primary" fontSize="small" /></InputAdornment>, inputProps: { min: 0 } }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                          <InputLabel>O'lchov birligi</InputLabel>
-                          <Select
-                            name="unit"
-                            value={editingProduct?.unit || 'gram'}
-                            onChange={(e) => setEditingProduct((prev) => ({ ...prev, unit: e.target.value }))}
-                            label="O'lchov birligi"
-                            required
-                          >
-                            {['gram', 'liter', 'dona', 'kg', 'ml', 'portion'].map((unit) => (
-                              <MenuItem key={unit} value={unit}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <ScaleIcon fontSize="small" />
-                                  {unit}
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                          <InputLabel>Oshxona</InputLabel>
-                          <Select
-                            name="kitchen_id"
-                            value={editingProduct?.kitchen_id || ''}
-                            onChange={(e) => setEditingProduct((prev) => ({ ...prev, kitchen_id: e.target.value }))}
-                            label="Oshxona"
-                            required
-                          >
-                            {kitchens.map((kitchen) => (
-                              <MenuItem key={kitchen.id} value={kitchen.id}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <KitchenIcon fontSize="small" />
-                                  {kitchen.name}
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
+          <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+            <DialogTitle sx={{ bgcolor: 'error.main', color: 'white' }}>
+              Mahsulot(lar)ni O‘chirish
+            </DialogTitle>
+            <DialogContent sx={{ py: 3 }}>
+              <Typography>
+                {productsToDelete.length > 1
+                  ? `${productsToDelete.length} ta mahsulotni o‘chirmoqchimisiz?`
+                  : `Mahsulotni o‘chirmoqchimisiz?`}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                Bu amalni qaytarib bo‘lmaydi.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">Bekor qilish</Button>
+              <Button onClick={handleBulkDelete} color="error" variant="contained" disabled={loading}>
+                O‘chirish
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog open={filterDialogOpen} onClose={() => setFilterDialogOpen(false)} maxWidth="sm" fullWidth>
+            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+              Filtrlash
+            </DialogTitle>
+            <DialogContent sx={{ py: 3 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Kategoriyalar</InputLabel>
+                    <Select
+                      multiple
+                      value={filters.categories}
+                      onChange={(e) => handleFilterChange('categories', e.target.value)}
+                      label="Kategoriyalar"
+                      renderValue={(selected) => selected.map(id => categories.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
+                    >
+                      {Array.isArray(categories) && categories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          <Checkbox checked={filters.categories.includes(category.id)} />
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Subkategoriyalar</InputLabel>
+                    <Select
+                      multiple
+                      value={filters.subcategories}
+                      onChange={(e) => handleFilterChange('subcategories', e.target.value)}
+                      label="Subkategoriyalar"
+                      renderValue={(selected) => selected.map(id => subcategories.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
+                      disabled={filters.categories.length === 0}
+                    >
+                      {Array.isArray(subcategories) && subcategories
+                        .filter(sub => filters.categories.length === 0 || filters.categories.includes(sub.category?.id))
+                        .map((subcategory) => (
+                          <MenuItem key={subcategory.id} value={subcategory.id}>
+                            <Checkbox checked={filters.subcategories.includes(subcategory.id)} />
+                            {subcategory.name}
+                          </MenuItem>
+                        ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Oshxonalar</InputLabel>
+                    <Select
+                      multiple
+                      value={filters.kitchens}
+                      onChange={(e) => handleFilterChange('kitchens', e.target.value)}
+                      label="Oshxonalar"
+                      renderValue={(selected) => selected.map(id => kitchens.find(k => k.id === id)?.name).filter(Boolean).join(', ')}
+                    >
+                      {Array.isArray(kitchens) && kitchens.map((kitchen) => (
+                        <MenuItem key={kitchen.id} value={kitchen.id}>
+                          <Checkbox checked={filters.kitchens.includes(kitchen.id)} />
+                          {kitchen.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography gutterBottom>Narx oralig'i</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <TextField
+                      label="Min"
+                      type="number"
+                      value={filters.priceRange[0]}
+                      onChange={(e) => handleFilterChange('priceRange', [Number(e.target.value), filters.priceRange[1]])}
+                      fullWidth
+                    />
+                    <Typography>-</Typography>
+                    <TextField
+                      label="Max"
+                      type="number"
+                      value={filters.priceRange[1]}
+                      onChange={(e) => handleFilterChange('priceRange', [filters.priceRange[0], Number(e.target.value)])}
+                      fullWidth
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.hasDiscount}
+                        onChange={(e) => handleFilterChange('hasDiscount', e.target.checked)}
+                      />
+                    }
+                    label="Faqat chegirmali mahsulotlar"
+                  />
+                </Grid>
               </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={resetFilters} color="inherit">
+                Tozalash
+              </Button>
+              <Button onClick={applyFilters} variant="contained" color="primary">
+                Qo'llash
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                  <CardContent sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}>
-                      <CategoryIcon color="primary" sx={{ mr: 1 }} /> Kategoriyalar
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Kategoriya</InputLabel>
-                          <Select
-                            name="category_id"
-                            value={editingProduct?.category_id || ''}
-                            onChange={(e) => setEditingProduct((prev) => ({ ...prev, category_id: e.target.value, subcategory_id: '' }))}
-                            label="Kategoriya"
-                            required
-                          >
-                            {categories.map((category) => (
-                              <MenuItem key={category.id} value={category.id}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <CategoryIcon fontSize="small" />
-                                  {category.name}
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Subkategoriya</InputLabel>
-                          <Select
-                            name="subcategory_id"
-                            value={editingProduct?.subcategory_id || ''}
-                            onChange={(e) => setEditingProduct((prev) => ({ ...prev, subcategory_id: e.target.value }))}
-                            label="Subkategoriya"
-                            disabled={!editingProduct?.category_id}
-                          >
-                            {editingProduct?.category_id ? (
-                              subcategories
-                                .filter((sub) => sub.category?.id === Number(editingProduct.category_id))
-                                .map((subcategory) => (
-                                  <MenuItem key={subcategory.id} value={subcategory.id}>
-                                    {subcategory.name}
-                                  </MenuItem>
-                                ))
-                            ) : (
-                              <MenuItem disabled>Avval kategoriyani tanlang</MenuItem>
-                            )}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            label="Yangi kategoriya nomi"
-                            value={newCategoryName}
-                            onChange={(e) => setNewCategoryName(e.target.value)}
-                            sx={{ flex: 1 }}
-                          />
-                          <Button
-                            variant="outlined"
-                            color="primary"
-                            size="small"
-                            onClick={handleAddCategory}
-                            disabled={!newCategoryName.trim()}
-                            sx={{ minWidth: 40 }}
-                          >
-                            <AddIcon fontSize="small" />
-                          </Button>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            label="Yangi subkategoriya nomi"
-                            value={newSubcategoryName}
-                            onChange={(e) => setNewSubcategoryName(e.target.value)}
-                            disabled={!editingProduct?.category_id}
-                            sx={{ flex: 1 }}
-                          />
-                          <Button
-                            variant="outlined"
-                            color="primary"
-                            size="small"
-                            onClick={handleAddSubcategory}
-                            disabled={!newSubcategoryName.trim() || !editingProduct?.category_id}
-                            sx={{ minWidth: 40 }}
-                          >
-                            <AddIcon fontSize="small" />
-                          </Button>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => { setEditingProduct(null); setImageFile(null); if (imagePreview) URL.revokeObjectURL(imagePreview); setImagePreview(null); }} color="inherit">Bekor qilish</Button>
-            <Button onClick={handleSaveEdit} variant="contained" color="primary" startIcon={<SaveIcon />} disabled={loading} sx={{ minWidth: '120px' }}>
-              {loading ? <CircularProgress size={24} /> : 'Saqlash'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-          <DialogTitle sx={{ bgcolor: 'red.600', color: 'white' }}>Mahsulotni o'chirish</DialogTitle>
-          <DialogContent sx={{ py: 3 }}>
-            <Typography>Rostan ham <strong>{productToDelete?.title || 'Mahsulot'}</strong> mahsulotini o'chirmoqchimisiz?</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>Bu amalni qaytarib bo'lmaydi.</Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">Bekor qilish</Button>
-            <Button onClick={handleDelete} variant="contained" color="error" startIcon={<DeleteIcon />} disabled={loading}>
-              {loading ? <CircularProgress size={24} color="inherit" /> : 'O\'chirish'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled" sx={{ width: '100%', borderRadius: 2, boxShadow: 3 }}>
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={6000}
+            onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          >
+            <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Container>
       </Box>
     </ThemeProvider>
   );
 };
 
-export default ProductsList;
+// Error Boundary bilan o‘rash
+const WrappedProductsList = () => (
+  <ErrorBoundary>
+    <ProductsList />
+  </ErrorBoundary>
+);
+
+export default WrappedProductsList;
